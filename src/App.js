@@ -1,13 +1,13 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 
 // --- Helper Components ---
 
 // Simple Icon component for UI elements
-const Icon = ({ path, style = {} }) => (
+const Icon = memo(({ path, style = {} }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style={{width: '1.25rem', height: '1.25rem', ...style}}>
     <path d={path} />
   </svg>
-);
+));
 
 // Icons paths
 const ICONS = {
@@ -23,11 +23,14 @@ const ICONS = {
   link: "M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z",
   description: "M4 6h16v2H4zm0 4h16v2H4zm0 4h12v2H4z",
   sitemap: "M12.75 3.5a.75.75 0 00-1.5 0v1.5h-1.5a.75.75 0 000 1.5h1.5v1.5a.75.75 0 001.5 0V6.5h1.5a.75.75 0 000-1.5H12.75V3.5zM6 11.25a.75.75 0 000 1.5h12a.75.75 0 000-1.5H6zM12.75 16.25a.75.75 0 00-1.5 0v1.5h-1.5a.75.75 0 000 1.5h1.5v1.5a.75.75 0 001.5 0v-1.5h1.5a.75.75 0 000-1.5H12.75v-1.5z",
-  close: "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"
+  close: "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z",
+  expand: "M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z",
+  collapse: "M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z",
+  beautify: "M12,2.5L14.32,4.82L17,2L17.5,5.5L21,6L18.68,8.32L21.5,11.5L18,11L18.5,14.5L15.68,12.18L13,15L12,11.5L11,15L8.32,12.18L5.5,14.5L6,11L2.5,11.5L5.32,8.32L2,6L5.5,5.5L7,2L9.68,4.82L12,2.5Z"
 };
 
 // JSON Editor with basic validation and styling
-const JsonEditor = ({ title, json, setJson, isRequest, isExpanded, onToggleExpand }) => {
+const JsonEditor = memo(({ title, json, setJson, isRequest, isExpanded, onToggleExpand }) => {
   const [isValid, setIsValid] = useState(true);
 
   const handleChange = (e) => {
@@ -45,6 +48,19 @@ const JsonEditor = ({ title, json, setJson, isRequest, isExpanded, onToggleExpan
     setJson(textValue);
   };
   
+  const handleBeautify = () => {
+      try {
+          if (json.trim() === '') {
+              setJson('{}');
+              return;
+          }
+          const parsed = JSON.parse(json);
+          setJson(JSON.stringify(parsed, null, 2));
+      } catch (error) {
+          // Handle invalid JSON, maybe flash border red
+      }
+  };
+
   const headerStyle = {
       fontSize: '1.125rem',
       fontWeight: '600',
@@ -73,9 +89,14 @@ const JsonEditor = ({ title, json, setJson, isRequest, isExpanded, onToggleExpan
 
   return (
     <div style={{width: '100%'}}>
-        <div onClick={onToggleExpand} style={{display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '0.5rem'}}>
-            <Icon path={isExpanded ? ICONS.chevronDown : ICONS.chevronRight} style={{ marginRight: '0.5rem' }} />
-            <h3 style={headerStyle}>{title}</h3>
+        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem'}}>
+            <div onClick={onToggleExpand} style={{display: 'flex', alignItems: 'center', cursor: 'pointer'}}>
+                <Icon path={isExpanded ? ICONS.chevronDown : ICONS.chevronRight} style={{ marginRight: '0.5rem' }} />
+                <h3 style={headerStyle}>{title}</h3>
+            </div>
+            <button onClick={handleBeautify} title="Beautify JSON" className="icon-button">
+                <Icon path={ICONS.beautify} />
+            </button>
         </div>
         <div className="collapsible-content" style={{ maxHeight: isExpanded ? '500px' : '0' }}>
             <textarea
@@ -96,24 +117,51 @@ const JsonEditor = ({ title, json, setJson, isRequest, isExpanded, onToggleExpan
         </div>
     </div>
   );
-};
+});
 
 // --- Recursive Node Component for API Flow Tree ---
-const ApiFlowNode = ({ step, updateStep, addChildStep, deleteStep, level = 0 }) => {
+const ApiFlowNode = memo(({ step, updateStep, addChildStep, deleteStep, level = 0 }) => {
+    const httpMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+
+    const handleUrlChange = (e) => {
+        const urlString = e.target.value;
+        updateStep(step.id, 'url', urlString);
+
+        try {
+            // Use a dummy base to handle relative URLs
+            const url = new URL(urlString, 'http://dummybase.com');
+            const params = Object.fromEntries(url.searchParams.entries());
+             if (Object.keys(params).length > 0) {
+                 updateStep(step.id, 'queryParams', JSON.stringify(params, null, 2));
+            } else {
+                 updateStep(step.id, 'queryParams', '{}');
+            }
+        } catch (error) {
+            // If URL parsing fails, do nothing
+        }
+    };
+
     return (
         <div className="api-flow-node" style={{ position: 'relative', paddingTop: '2rem' }}>
             {level > 0 && <span style={{ position: 'absolute', top: '2rem', left: '-1.5rem', width: '1.5rem', height: 'calc(50% + 2rem)', borderBottom: '2px solid #4b5563', borderLeft: '2px solid #4b5563', borderRadius: '0 0 0 0.75rem' }}></span>}
             
             <div className="api-node-card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: step.isExpanded ? '1rem' : '0' }}>
-                     <div style={{ display: 'flex', alignItems: 'center', flexGrow: 1, cursor: 'pointer' }}  onClick={() => updateStep(step.id, 'isExpanded', !step.isExpanded)}>
-                        <div title={step.isExpanded ? "Collapse" : "Expand"} className="icon-button transparent">
+                     <div style={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
+                        <button title={step.isExpanded ? "Collapse" : "Expand"} className="icon-button transparent" onClick={() => updateStep(step.id, 'isExpanded', !step.isExpanded)}>
                             <Icon path={step.isExpanded ? ICONS.chevronDown : ICONS.chevronRight} />
-                        </div>
+                        </button>
+                        <select
+                            value={step.method}
+                            onChange={(e) => updateStep(step.id, 'method', e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="http-method-select"
+                        >
+                            {httpMethods.map(method => <option key={method} value={method}>{method}</option>)}
+                        </select>
                         <input
                             type="text"
                             value={step.title}
-                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) => updateStep(step.id, 'title', e.target.value)}
                             className="api-node-title"
                         />
@@ -135,7 +183,7 @@ const ApiFlowNode = ({ step, updateStep, addChildStep, deleteStep, level = 0 }) 
                                 <input
                                     type="text"
                                     value={step.url}
-                                    onChange={(e) => updateStep(step.id, 'url', e.target.value)}
+                                    onChange={handleUrlChange}
                                     placeholder="API Endpoint URL"
                                     className="detail-input"
                                 />
@@ -161,14 +209,21 @@ const ApiFlowNode = ({ step, updateStep, addChildStep, deleteStep, level = 0 }) 
                                 />
                             </div>
                         </div>
+                        
+                        <JsonEditor title="Headers" json={step.headers} setJson={(val) => updateStep(step.id, 'headers', val)} isRequest={true} isExpanded={step.isHeadersExpanded} onToggleExpand={() => updateStep(step.id, 'isHeadersExpanded', !step.isHeadersExpanded)} />
+                        
+                        <JsonEditor title="Query Params" json={step.queryParams} setJson={(val) => updateStep(step.id, 'queryParams', val)} isRequest={true} isExpanded={step.isParamsExpanded} onToggleExpand={() => updateStep(step.id, 'isParamsExpanded', !step.isParamsExpanded)} />
 
-                        <JsonEditor title="Request" json={step.request} setJson={(val) => updateStep(step.id, 'request', val)} isRequest={true} isExpanded={step.isRequestExpanded} onToggleExpand={() => updateStep(step.id, 'isRequestExpanded', !step.isRequestExpanded)} />
+                        {step.method !== 'GET' && (
+                            <JsonEditor title="Request Body" json={step.request} setJson={(val) => updateStep(step.id, 'request', val)} isRequest={true} isExpanded={step.isRequestExpanded} onToggleExpand={() => updateStep(step.id, 'isRequestExpanded', !step.isRequestExpanded)} />
+                        )}
+
                         <JsonEditor title="Response" json={step.response} setJson={(val) => updateStep(step.id, 'response', val)} isRequest={false} isExpanded={step.isResponseExpanded} onToggleExpand={() => updateStep(step.id, 'isResponseExpanded', !step.isResponseExpanded)} />
                     </div>
                 </div>
             </div>
             
-            <div className="collapsible-content" style={{ maxHeight: step.isExpanded ? '2000px' : '0' }}>
+            <div className="collapsible-content" style={{ maxHeight: step.isExpanded ? '9999px' : '0' }}>
                 {step.children && step.children.length > 0 && (
                     <>
                         <div style={{ display: 'flex', justifyContent: 'flex-start', margin: '1rem 0', marginLeft: '2rem' }}>
@@ -195,11 +250,11 @@ const ApiFlowNode = ({ step, updateStep, addChildStep, deleteStep, level = 0 }) 
             </div>
         </div>
     );
-};
+});
 
 
 // --- Quick View Components ---
-const QuickViewNode = ({ node }) => (
+const QuickViewNode = memo(({ node }) => (
     <div className="quick-view-node-container">
         <div className="quick-view-node">{node.title}</div>
         {node.children && node.children.length > 0 && (
@@ -211,7 +266,7 @@ const QuickViewNode = ({ node }) => (
             </>
         )}
     </div>
-);
+));
 
 const QuickView = ({ flows, onClose }) => {
     return (
@@ -238,27 +293,63 @@ export default function App() {
   const addExpansionState = (nodes) => {
     return nodes.map(node => ({
         ...node,
+        method: node.method || 'POST',
         url: node.url || '',
         description: node.description || '',
         repoLink: node.repoLink || '',
+        headers: node.headers || '{\n  "Authorization": "Bearer YOUR_TOKEN",\n  "Content-Type": "application/json"\n}',
+        queryParams: node.queryParams || '{}',
         isExpanded: node.isExpanded !== undefined ? node.isExpanded : false,
         isRequestExpanded: node.isRequestExpanded !== undefined ? node.isRequestExpanded : false,
         isResponseExpanded: node.isResponseExpanded !== undefined ? node.isResponseExpanded : false,
+        isHeadersExpanded: node.isHeadersExpanded !== undefined ? node.isHeadersExpanded : false,
+        isParamsExpanded: node.isParamsExpanded !== undefined ? node.isParamsExpanded : false,
         children: node.children ? addExpansionState(node.children) : []
     }));
   };
     
   const initialFlows = [
     {
-        "id": 1,
-        "title": "API 1: Start Your Flow Here",
-        "url": "https://api.example.com/v1/resource",
-        "description": "This is a sample API step. Click to expand and edit the details.",
-        "repoLink": "https://bitbucket.org/your-org/your-repo",
-        "request": "{\n  \"key\": \"value\"\n}",
-        "response": "{\n  \"message\": \"success\"\n}",
-        "outputDescription": "Describe the data flow to child APIs",
-        "children": []
+      "id": 1,
+      "title": "1. Get Order Details",
+      "url": "https://api.ecommerce.com/orders/ord_123",
+      "description": "Fetches the line items for a specific customer order.",
+      "repoLink": "https://bitbucket.org/ecommerce/order-service",
+      "method": "GET",
+      "request": "{}",
+      "response": "{\n  \"orderId\": \"ord_123\",\n  \"lineItems\": [\n    {\n      \"lineId\": 1,\n      \"productId\": \"prod_abc\",\n      \"ESN\": \"111222333444\"\n    },\n    {\n      \"lineId\": 2,\n      \"productId\": \"prod_def\",\n      \"ESN\": \"555666777888\"\n    }\n  ]\n}",
+      "outputDescription": "Use ESN from line items for device lookups",
+      "children": [
+        {
+          "id": 2,
+          "title": "1a. Get Device Details for ESN 1",
+          "url": "https://api.devices.com/details/111222333444",
+          "method": "GET",
+          "description": "Gets details for the first device in the order.",
+          "response": "{\n  \"serialNumber\": \"SN-AABBCC1122\",\n  \"model\": \"SuperPhone XI\"\n}",
+          "outputDescription": "Use serialNumber to check warranty",
+          "children": [
+            {
+              "id": 3,
+              "title": "1a-i. Check Warranty for SN-AABBCC1122",
+              "url": "https://api.warranty.com/check/SN-AABBCC1122",
+              "method": "GET",
+              "description": "Checks warranty status.",
+              "response": "{\n  \"status\": \"Active\",\n  \"expiresOn\": \"2026-09-01\"\n}",
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "1b. Get Device Details for ESN 2",
+          "url": "https://api.devices.com/details/555666777888",
+          "method": "GET",
+          "description": "Gets details for the second device in the order.",
+          "response": "{\n  \"serialNumber\": \"SN-DDEEFF3344\",\n  \"model\": \"MegaTablet 5\"\n}",
+          "children": []
+        }
+      ]
     }
   ];
 
@@ -266,30 +357,15 @@ export default function App() {
   const [notification, setNotification] = useState('');
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
 
-  const getIds = (steps) => steps.reduce((acc, step) => [...acc, step.id, ...getIds(step.children)], []);
-  const getUniqueId = () => Math.max(0, ...getIds(flows)) + 1;
-  const showNotification = (message) => { setNotification(message); setTimeout(() => setNotification(''), 3000); };
+  const getIds = useCallback((steps) => steps.reduce((acc, step) => [...acc, step.id, ...getIds(step.children || [])], []), []);
+  const getUniqueId = useCallback(() => Math.max(0, ...getIds(flows)) + 1, [flows, getIds]);
+  const showNotification = useCallback((message) => { setNotification(message); setTimeout(() => setNotification(''), 3000); }, []);
   
-  const updateStep = (id, field, value) => {
-    const collapseRecursively = (nodes) => {
-        return nodes.map(node => ({
-            ...node,
-            isExpanded: false,
-            isRequestExpanded: false,
-            isResponseExpanded: false,
-            children: node.children ? collapseRecursively(node.children) : []
-        }));
-    };
-      
+  const updateStep = useCallback((id, field, value) => {
     const updateNode = (nodes) => {
         return nodes.map(node => {
             if (node.id === id) {
-                const updatedNode = { ...node, [field]: value };
-                // If we are collapsing this node, collapse all its children as well.
-                if (field === 'isExpanded' && value === false && updatedNode.children) {
-                    updatedNode.children = collapseRecursively(updatedNode.children);
-                }
-                return updatedNode;
+                return { ...node, [field]: value };
             }
             if (node.children) {
                  return { ...node, children: updateNode(node.children) };
@@ -297,38 +373,38 @@ export default function App() {
             return node;
         });
     };
-    setFlows(updateNode(flows));
-  };
+    setFlows(currentFlows => updateNode(currentFlows));
+  }, []);
   
-  const addStep = () => {
+  const addStep = useCallback(() => {
     const newId = getUniqueId();
-    const newStep = { id: newId, title: `API ${newId}: New Root Step`, url: '', description: '', repoLink: '', request: JSON.stringify({ "data": "value" }, null, 2), response: JSON.stringify({ "result": "success" }, null, 2), outputDescription: "", isExpanded: true, isRequestExpanded: true, isResponseExpanded: false, children: [] };
-    setFlows([...flows, newStep]);
-  };
+    const newStep = { id: newId, title: `API ${newId}: New Root Step`, url: '', description: '', repoLink: '', request: JSON.stringify({ "data": "value" }, null, 2), response: JSON.stringify({ "result": "success" }, null, 2), outputDescription: "", isExpanded: true, isRequestExpanded: true, children: [] };
+    setFlows(currentFlows => [...currentFlows, addExpansionState([newStep])[0]]);
+  }, [getUniqueId]);
   
-  const addChildStep = (parentId) => {
+  const addChildStep = useCallback((parentId) => {
     const newId = getUniqueId();
-    const newStep = { id: newId, title: `API Child: New Step`, url: '', description: '', repoLink: '', request: JSON.stringify({ "fromParent": "value" }, null, 2), response: JSON.stringify({ "result": "pending" }, null, 2), outputDescription: "", isExpanded: true, isRequestExpanded: true, isResponseExpanded: false, children: [] };
-    const addStepToParent = (steps) => steps.map(step => (step.id === parentId) ? { ...step, isExpanded: true, children: [...step.children, newStep] } : { ...step, children: addStepToParent(step.children) });
-    setFlows(addStepToParent(flows));
-  };
+    const newStep = { id: newId, title: `API Child: New Step`, url: '', description: '', repoLink: '', request: JSON.stringify({ "fromParent": "value" }, null, 2), response: JSON.stringify({ "result": "pending" }, null, 2), outputDescription: "", isExpanded: true, isRequestExpanded: true, children: [] };
+    const addStepToParent = (steps) => steps.map(step => (step.id === parentId) ? { ...step, isExpanded: true, children: [...(step.children || []), addExpansionState([newStep])[0]] } : { ...step, children: addStepToParent(step.children || []) });
+    setFlows(currentFlows => addStepToParent(currentFlows));
+  }, [getUniqueId]);
 
-  const deleteStep = (targetId) => {
+  const deleteStep = useCallback((targetId) => {
     const filterSteps = (steps) => steps.filter(step => step.id !== targetId).map(step => ({ ...step, children: filterSteps(step.children || []) }));
-    setFlows(filterSteps(flows));
+    setFlows(currentFlows => filterSteps(currentFlows));
     showNotification("API Step deleted.");
-  };
+  }, [showNotification]);
 
-  const handleExport = () => {
+  const handleExport = useCallback(() => {
       try {
         const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(flows, null, 2))}`;
         const link = document.createElement("a");
         link.href = jsonString; link.download = "api-flow.json"; link.click();
         showNotification("Flow exported successfully!");
       } catch (error) { showNotification("Error exporting flow."); }
-  };
+  }, [flows, showNotification]);
 
-  const handleImport = (event) => {
+  const handleImport = useCallback((event) => {
     const fileReader = new FileReader();
     fileReader.onload = (e) => {
         try {
@@ -340,9 +416,9 @@ export default function App() {
         } catch (error) { showNotification("Error reading or parsing the file."); }
     };
     if(event.target.files[0]) { fileReader.readAsText(event.target.files[0]); }
-  };
+  }, [showNotification]);
 
-  const handleCopyToClipboard = () => {
+  const handleCopyToClipboard = useCallback(() => {
     try {
         const jsonString = JSON.stringify(flows, null, 2);
         const textArea = document.createElement("textarea");
@@ -352,7 +428,20 @@ export default function App() {
         catch (err) { showNotification("Failed to copy JSON."); }
         document.body.removeChild(textArea);
     } catch(e) { showNotification("Failed to copy JSON."); }
-  };
+  }, [flows, showNotification]);
+
+  const toggleAll = useCallback((expand) => {
+      const toggleNode = (nodes) => nodes.map(node => ({
+          ...node,
+          isExpanded: expand,
+          isRequestExpanded: expand,
+          isResponseExpanded: expand,
+          isHeadersExpanded: expand,
+          isParamsExpanded: expand,
+          children: toggleNode(node.children || [])
+      }));
+      setFlows(currentFlows => toggleNode(currentFlows));
+  }, []);
 
   // --- Styles ---
   const styles = `
@@ -404,8 +493,20 @@ export default function App() {
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
     }
-    .api-node-title { font-size: 1.5rem; font-weight: bold; color: white; background-color: transparent; border: none; border-bottom: 2px solid transparent; outline: none; width: 100%; padding-bottom: 0.25rem; transition: border-color 0.3s; cursor: pointer; }
+    .api-node-title { font-size: 1.25rem; font-weight: bold; color: white; background-color: transparent; border: none; border-bottom: 2px solid transparent; outline: none; width: 100%; padding-bottom: 0.25rem; transition: border-color 0.3s; }
     .api-node-title:focus { border-color: #a78bfa; }
+
+    .http-method-select {
+        background-color: transparent;
+        color: #e5e7eb;
+        border: 1px solid #4b5563;
+        border-radius: 0.375rem;
+        padding: 0.25rem 0.5rem;
+        font-weight: 600;
+        margin-right: 0.75rem;
+        cursor: pointer;
+    }
+    .http-method-select:focus { outline: none; border-color: #a78bfa; }
 
     .icon-button { padding: 0.5rem; border-radius: 9999px; border: none; cursor: pointer; transition: all 0.2s; background-color: transparent; color: #9ca3af; }
     .icon-button:hover { background-color: rgba(255,255,255,0.1); color: white; }
@@ -559,6 +660,12 @@ export default function App() {
            <button onClick={addStep} className="action-button" style={{backgroundColor: '#9333ea'}}>
                 <Icon path={ICONS.share}/> Add Root API
             </button>
+            <button onClick={() => toggleAll(true)} className="action-button" style={{backgroundColor: '#059669'}}>
+                <Icon path={ICONS.expand}/> Expand All
+            </button>
+            <button onClick={() => toggleAll(false)} className="action-button" style={{backgroundColor: '#78716c'}}>
+                <Icon path={ICONS.collapse}/> Collapse All
+            </button>
             <button onClick={handleExport} className="action-button" style={{backgroundColor: '#16a34a'}}>
                 <Icon path={ICONS.download}/> Export Flow
             </button>
@@ -586,4 +693,3 @@ export default function App() {
     </div>
   );
 }
-
