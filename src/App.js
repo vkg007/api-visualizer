@@ -2,14 +2,12 @@ import React, { useState, useCallback, memo } from 'react';
 
 // --- Helper Components ---
 
-// Simple Icon component for UI elements
 const Icon = memo(({ path, style = {} }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style={{width: '1.25rem', height: '1.25rem', ...style}}>
     <path d={path} />
   </svg>
 ));
 
-// Icons paths
 const ICONS = {
   downArrow: "M12 2a1 1 0 011 1v12.586l3.293-3.293a1 1 0 111.414 1.414l-5 5a1 1 0 01-1.414 0l-5-5a1 1 0 011.414-1.414L11 15.586V3a1 1 0 011-1z",
   share: "M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z",
@@ -29,421 +27,612 @@ const ICONS = {
   beautify: "M12,2.5L14.32,4.82L17,2L17.5,5.5L21,6L18.68,8.32L21.5,11.5L18,11L18.5,14.5L15.68,12.18L13,15L12,11.5L11,15L8.32,12.18L5.5,14.5L6,11L2.5,11.5L5.32,8.32L2,6L5.5,5.5L7,2L9.68,4.82L12,2.5Z"
 };
 
-// JSON Editor with basic validation and styling
-const JsonEditor = memo(({ title, json, setJson, isRequest, isExpanded, onToggleExpand }) => {
-  const [isValid, setIsValid] = useState(true);
 
-  const handleChange = (e) => {
-    const textValue = e.target.value;
-    try {
-      if(textValue.trim() === '') {
-          JSON.parse('{}');
-      } else {
-        JSON.parse(textValue);
-      }
-      setIsValid(true);
-    } catch (error) {
-      setIsValid(false);
-    }
-    setJson(textValue);
-  };
-  
-  const handleBeautify = () => {
-      try {
-          if (json.trim() === '') {
-              setJson('{}');
-              return;
-          }
-          const parsed = JSON.parse(json);
-          setJson(JSON.stringify(parsed, null, 2));
-      } catch (error) {
-          // Handle invalid JSON, maybe flash border red
-      }
-  };
+// --- Tool 1: JSON Beautifier ---
+const JsonBeautifier = () => {
+    const [jsonInput, setJsonInput] = useState('{"key":"value","nested":{"id":1}}');
+    const [error, setError] = useState('');
 
-  const headerStyle = {
-      fontSize: '1.125rem',
-      fontWeight: '600',
-      color: isRequest ? '#93c5fd' : '#86efac'
-  };
-  
-  const textareaBaseStyle = {
-      width: '100%',
-      height: '16rem',
-      padding: '0.75rem',
-      fontFamily: "'Fira Code', monospace",
-      fontSize: '0.875rem',
-      backgroundColor: 'rgba(17, 24, 39, 0.8)',
-      color: '#e5e7eb',
-      borderRadius: '0.375rem',
-      border: '2px solid',
-      outline: 'none',
-      resize: 'vertical',
-      transition: 'border-color 0.3s, box-shadow 0.3s'
-  };
-  
-  const textareaStyle = {
-      ...textareaBaseStyle,
-      borderColor: isValid ? '#374151' : '#ef4444'
-  };
-
-  return (
-    <div style={{width: '100%'}}>
-        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem'}}>
-            <div onClick={onToggleExpand} style={{display: 'flex', alignItems: 'center', cursor: 'pointer'}}>
-                <Icon path={isExpanded ? ICONS.chevronDown : ICONS.chevronRight} style={{ marginRight: '0.5rem' }} />
-                <h3 style={headerStyle}>{title}</h3>
-            </div>
-            <button onClick={handleBeautify} title="Beautify JSON" className="icon-button">
-                <Icon path={ICONS.beautify} />
-            </button>
-        </div>
-        <div className="collapsible-content" style={{ maxHeight: isExpanded ? '500px' : '0' }}>
-            <textarea
-                value={json}
-                onChange={handleChange}
-                style={textareaStyle}
-                onFocus={(e) => {
-                    e.target.style.borderColor = '#60a5fa';
-                    e.target.style.boxShadow = '0 0 15px rgba(59, 130, 246, 0.3)';
-                }}
-                onBlur={(e) => {
-                    e.target.style.borderColor = isValid ? '#374151' : '#ef4444';
-                    e.target.style.boxShadow = 'none';
-                }}
-                spellCheck="false"
-            />
-            {!isValid && <p style={{color: '#f87171', fontSize: '0.75rem', marginTop: '0.25rem'}}>Invalid JSON format.</p>}
-        </div>
-    </div>
-  );
-});
-
-// --- Recursive Node Component for API Flow Tree ---
-const ApiFlowNode = memo(({ step, updateStep, addChildStep, deleteStep, level = 0 }) => {
-    const httpMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
-
-    const handleUrlChange = (e) => {
-        const urlString = e.target.value;
-        updateStep(step.id, 'url', urlString);
-
+    const handleBeautify = () => {
         try {
-            // Use a dummy base to handle relative URLs
-            const url = new URL(urlString, 'http://dummybase.com');
-            const params = Object.fromEntries(url.searchParams.entries());
-             if (Object.keys(params).length > 0) {
-                 updateStep(step.id, 'queryParams', JSON.stringify(params, null, 2));
-            } else {
-                 updateStep(step.id, 'queryParams', '{}');
+            if (jsonInput.trim() === '') {
+                setError('Input is empty.');
+                return;
             }
-        } catch (error) {
-            // If URL parsing fails, do nothing
+            const parsed = JSON.parse(jsonInput);
+            setJsonInput(JSON.stringify(parsed, null, 2));
+            setError('');
+        } catch (e) {
+            setError('Invalid JSON format.');
         }
     };
 
     return (
-        <div className="api-flow-node" style={{ position: 'relative', paddingTop: '2rem' }}>
-            {level > 0 && <span style={{ position: 'absolute', top: '2rem', left: '-1.5rem', width: '1.5rem', height: 'calc(50% + 2rem)', borderBottom: '2px solid #4b5563', borderLeft: '2px solid #4b5563', borderRadius: '0 0 0 0.75rem' }}></span>}
-            
-            <div className="api-node-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: step.isExpanded ? '1rem' : '0' }}>
-                     <div style={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
-                        <button title={step.isExpanded ? "Collapse" : "Expand"} className="icon-button transparent" onClick={() => updateStep(step.id, 'isExpanded', !step.isExpanded)}>
-                            <Icon path={step.isExpanded ? ICONS.chevronDown : ICONS.chevronRight} />
-                        </button>
-                        <select
-                            value={step.method}
-                            onChange={(e) => updateStep(step.id, 'method', e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="http-method-select"
-                        >
-                            {httpMethods.map(method => <option key={method} value={method}>{method}</option>)}
-                        </select>
-                        <input
-                            type="text"
-                            value={step.title}
-                            onChange={(e) => updateStep(step.id, 'title', e.target.value)}
-                            className="api-node-title"
-                        />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                        <button onClick={() => addChildStep(step.id)} title="Add Child Step" className="icon-button blue">
-                            <Icon path={ICONS.addChild} />
-                        </button>
-                        <button onClick={() => deleteStep(step.id)} title="Delete Step" className="icon-button red">
-                            <Icon path={ICONS.trash} />
-                        </button>
-                    </div>
-                </div>
-                <div className="collapsible-content" style={{ maxHeight: step.isExpanded ? '1000px' : '0' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingTop: '1rem' }}>
-                         <div className="api-node-details-grid">
-                            <div className="detail-item">
-                                <Icon path={ICONS.link} />
-                                <input
-                                    type="text"
-                                    value={step.url}
-                                    onChange={handleUrlChange}
-                                    placeholder="API Endpoint URL"
-                                    className="detail-input"
-                                />
-                            </div>
-                            <div className="detail-item">
-                                <Icon path={ICONS.link} />
-                                <input
-                                    type="text"
-                                    value={step.repoLink}
-                                    onChange={(e) => updateStep(step.id, 'repoLink', e.target.value)}
-                                    placeholder="Bitbucket Repo Link"
-                                    className="detail-input"
-                                />
-                            </div>
-                            <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-                                 <Icon path={ICONS.description} style={{alignSelf: 'flex-start', marginTop: '0.5rem'}}/>
-                                 <textarea
-                                    value={step.description}
-                                    onChange={(e) => updateStep(step.id, 'description', e.target.value)}
-                                    placeholder="API Description..."
-                                    className="detail-textarea"
-                                    rows="3"
-                                />
-                            </div>
-                        </div>
-                        
-                        <JsonEditor title="Headers" json={step.headers} setJson={(val) => updateStep(step.id, 'headers', val)} isRequest={true} isExpanded={step.isHeadersExpanded} onToggleExpand={() => updateStep(step.id, 'isHeadersExpanded', !step.isHeadersExpanded)} />
-                        
-                        <JsonEditor title="Query Params" json={step.queryParams} setJson={(val) => updateStep(step.id, 'queryParams', val)} isRequest={true} isExpanded={step.isParamsExpanded} onToggleExpand={() => updateStep(step.id, 'isParamsExpanded', !step.isParamsExpanded)} />
-
-                        {step.method !== 'GET' && (
-                            <JsonEditor title="Request Body" json={step.request} setJson={(val) => updateStep(step.id, 'request', val)} isRequest={true} isExpanded={step.isRequestExpanded} onToggleExpand={() => updateStep(step.id, 'isRequestExpanded', !step.isRequestExpanded)} />
-                        )}
-
-                        <JsonEditor title="Response" json={step.response} setJson={(val) => updateStep(step.id, 'response', val)} isRequest={false} isExpanded={step.isResponseExpanded} onToggleExpand={() => updateStep(step.id, 'isResponseExpanded', !step.isResponseExpanded)} />
-                    </div>
-                </div>
-            </div>
-            
-            <div className="collapsible-content" style={{ maxHeight: step.isExpanded ? '9999px' : '0' }}>
-                {step.children && step.children.length > 0 && (
-                    <>
-                        <div style={{ display: 'flex', justifyContent: 'flex-start', margin: '1rem 0', marginLeft: '2rem' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <Icon path={ICONS.downArrow} style={{width: '2rem', height: '2rem', color: '#9ca3af'}}/>
-                                 <input
-                                    type="text"
-                                    value={step.outputDescription}
-                                    onChange={(e) => updateStep(step.id, 'outputDescription', e.target.value)}
-                                    className="output-description-input"
-                                    placeholder="Describe data flow..."
-                                />
-                            </div>
-                        </div>
-
-                        <div style={{ paddingLeft: '3rem', position: 'relative' }}>
-                            <span style={{ position: 'absolute', top: 0, left: 'calc(1.5rem)', width: '2px', height: '100%', background: '#4b5563' }}></span>
-                            {step.children.map(child => (
-                                <ApiFlowNode key={child.id} step={child} updateStep={updateStep} addChildStep={addChildStep} deleteStep={deleteStep} level={level + 1} />
-                            ))}
-                        </div>
-                    </>
-                )}
-            </div>
-        </div>
-    );
-});
-
-
-// --- Quick View Components ---
-const QuickViewNode = memo(({ node }) => (
-    <div className="quick-view-node-container">
-        <div className="quick-view-node">{node.title}</div>
-        {node.children && node.children.length > 0 && (
-            <>
-                <div className="quick-view-connector"></div>
-                <div className="quick-view-children">
-                    {node.children.map(child => <QuickViewNode key={child.id} node={child} />)}
-                </div>
-            </>
-        )}
-    </div>
-));
-
-const QuickView = ({ flows, onClose }) => {
-    return (
-        <div className="quick-view-overlay" onClick={onClose}>
-            <div className="quick-view-modal" onClick={e => e.stopPropagation()}>
-                <div className="quick-view-header">
-                    <h2>API Quick View</h2>
-                    <button onClick={onClose} className="icon-button close-button">
-                        <Icon path={ICONS.close} />
-                    </button>
-                </div>
-                <div className="quick-view-content">
-                    {flows.map(flow => <QuickViewNode key={flow.id} node={flow} />)}
-                </div>
-            </div>
+        <div className="tool-container">
+            <h2 className="tool-title">JSON Beautifier & Formatter</h2>
+            <textarea
+                value={jsonInput}
+                onChange={(e) => setJsonInput(e.target.value)}
+                className="tool-textarea"
+                placeholder="Paste your JSON here..."
+            />
+            <button onClick={handleBeautify} className="action-button" style={{backgroundColor: '#16a34a', marginTop: '1rem'}}>
+                <Icon path={ICONS.beautify} /> Beautify JSON
+            </button>
+            {error && <p className="tool-error">{error}</p>}
         </div>
     );
 };
 
+// --- Tool 2: JSON Compare ---
+const JsonCompare = () => {
+    const [jsonA, setJsonA] = useState('{\n  "id": 1,\n  "name": "A",\n  "status": "active"\n}');
+    const [jsonB, setJsonB] = useState('{\n  "id": 2,\n  "name": "B",\n  "status": "active"\n}');
+    const [result, setResult] = useState(null);
+    const [diff, setDiff] = useState(null);
 
-// --- Main App Component ---
-export default function App() {
+    const handleBeautify = (json, setter) => {
+        try {
+            const parsed = JSON.parse(json);
+            setter(JSON.stringify(parsed, null, 2));
+        } catch (e) {
+            // ignore error
+        }
+    };
     
-  const addExpansionState = (nodes) => {
-    return nodes.map(node => ({
-        ...node,
-        method: node.method || 'POST',
-        url: node.url || '',
-        description: node.description || '',
-        repoLink: node.repoLink || '',
-        headers: node.headers || '{\n  "Authorization": "Bearer YOUR_TOKEN",\n  "Content-Type": "application/json"\n}',
-        queryParams: node.queryParams || '{}',
-        isExpanded: node.isExpanded !== undefined ? node.isExpanded : false,
-        isRequestExpanded: node.isRequestExpanded !== undefined ? node.isRequestExpanded : false,
-        isResponseExpanded: node.isResponseExpanded !== undefined ? node.isResponseExpanded : false,
-        isHeadersExpanded: node.isHeadersExpanded !== undefined ? node.isHeadersExpanded : false,
-        isParamsExpanded: node.isParamsExpanded !== undefined ? node.isParamsExpanded : false,
-        children: node.children ? addExpansionState(node.children) : []
-    }));
-  };
-    
-  const initialFlows = [
-    {
-      "id": 1,
-      "title": "1. Get Order Details",
-      "url": "https://api.ecommerce.com/orders/ord_123",
-      "description": "Fetches the line items for a specific customer order.",
-      "repoLink": "https://bitbucket.org/ecommerce/order-service",
-      "method": "GET",
-      "request": "{}",
-      "response": "{\n  \"orderId\": \"ord_123\",\n  \"lineItems\": [\n    {\n      \"lineId\": 1,\n      \"productId\": \"prod_abc\",\n      \"ESN\": \"111222333444\"\n    },\n    {\n      \"lineId\": 2,\n      \"productId\": \"prod_def\",\n      \"ESN\": \"555666777888\"\n    }\n  ]\n}",
-      "outputDescription": "Use ESN from line items for device lookups",
-      "children": [
+    const getJsonDiff = (jsonStrA, jsonStrB) => {
+        const linesA = jsonStrA.split('\n');
+        const linesB = jsonStrB.split('\n');
+        const maxLines = Math.max(linesA.length, linesB.length);
+        let htmlA = '';
+        let htmlB = '';
+
+        for (let i = 0; i < maxLines; i++) {
+            const lineA = linesA[i] || '';
+            const lineB = linesB[i] || '';
+            if (lineA !== lineB) {
+                htmlA += `<span class="highlight">${lineA}</span>\n`;
+                htmlB += `<span class="highlight">${lineB}</span>\n`;
+            } else {
+                htmlA += `${lineA}\n`;
+                htmlB += `${lineB}\n`;
+            }
+        }
+        return { htmlA, htmlB };
+    };
+
+
+    const handleCompare = () => {
+        try {
+            const parsedA = JSON.parse(jsonA);
+            const parsedB = JSON.parse(jsonB);
+            const stringA = JSON.stringify(parsedA, Object.keys(parsedA).sort());
+            const stringB = JSON.stringify(parsedB, Object.keys(parsedB).sort());
+            
+            if (stringA === stringB) {
+                setResult({ identical: true, message: "JSON objects are identical." });
+                setDiff(null);
+            } else {
+                setResult({ identical: false, message: "JSON objects are different." });
+                const beautifiedA = JSON.stringify(parsedA, null, 2);
+                const beautifiedB = JSON.stringify(parsedB, null, 2);
+                setDiff(getJsonDiff(beautifiedA, beautifiedB));
+            }
+        } catch (e) {
+            setResult({ identical: false, message: "Invalid JSON in one or both inputs." });
+            setDiff(null);
+        }
+    };
+
+    return (
+        <div className="tool-container">
+            <h2 className="tool-title">JSON Compare</h2>
+            <div className="json-compare-grid">
+                <div>
+                    <div className="json-editor-header">
+                        <h3>JSON A</h3>
+                        <button onClick={() => handleBeautify(jsonA, setJsonA)} className="icon-button"><Icon path={ICONS.beautify}/></button>
+                    </div>
+                    <textarea
+                        value={jsonA}
+                        onChange={(e) => setJsonA(e.target.value)}
+                        className="tool-textarea"
+                        placeholder="Paste first JSON here..."
+                    />
+                </div>
+                 <div>
+                    <div className="json-editor-header">
+                        <h3>JSON B</h3>
+                        <button onClick={() => handleBeautify(jsonB, setJsonB)} className="icon-button"><Icon path={ICONS.beautify}/></button>
+                    </div>
+                    <textarea
+                        value={jsonB}
+                        onChange={(e) => setJsonB(e.target.value)}
+                        className="tool-textarea"
+                        placeholder="Paste second JSON here..."
+                    />
+                </div>
+            </div>
+            <button onClick={handleCompare} className="action-button" style={{backgroundColor: '#2563eb', marginTop: '1rem'}}>
+                Compare
+            </button>
+            {result && (
+                <div className="tool-result" style={{backgroundColor: result.identical ? 'rgba(22, 163, 74, 0.2)' : 'rgba(220, 38, 38, 0.2)', borderColor: result.identical ? '#16a34a' : '#dc2626' }}>
+                    {result.message}
+                </div>
+            )}
+            {diff && (
+                 <div className="json-compare-grid" style={{marginTop: '1.5rem'}}>
+                    <pre className="diff-view" dangerouslySetInnerHTML={{__html: diff.htmlA}} />
+                    <pre className="diff-view" dangerouslySetInnerHTML={{__html: diff.htmlB}} />
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- Tool 3: API Flow Visualizer ---
+const ApiFlowVisualizer = () => {
+
+    const JsonEditor = memo(({ title, json, setJson, isRequest, isExpanded, onToggleExpand }) => {
+      const [isValid, setIsValid] = useState(true);
+
+      const handleChange = (e) => {
+        const textValue = e.target.value;
+        try {
+          if(textValue.trim() === '') {
+              JSON.parse('{}');
+          } else {
+            JSON.parse(textValue);
+          }
+          setIsValid(true);
+        } catch (error) {
+          setIsValid(false);
+        }
+        setJson(textValue);
+      };
+      
+      const handleBeautify = () => {
+          try {
+              if (json.trim() === '') {
+                  setJson('{}');
+                  return;
+              }
+              const parsed = JSON.parse(json);
+              setJson(JSON.stringify(parsed, null, 2));
+          } catch (error) {
+              // Handle invalid JSON, maybe flash border red
+          }
+      };
+
+      const headerStyle = {
+          fontSize: '1.125rem',
+          fontWeight: '600',
+          color: isRequest ? '#93c5fd' : '#86efac'
+      };
+      
+      const textareaBaseStyle = {
+          width: '100%',
+          height: '16rem',
+          padding: '0.75rem',
+          fontFamily: "'Fira Code', monospace",
+          fontSize: '0.875rem',
+          backgroundColor: 'rgba(17, 24, 39, 0.8)',
+          color: '#e5e7eb',
+          borderRadius: '0.375rem',
+          border: '2px solid',
+          outline: 'none',
+          resize: 'vertical',
+          transition: 'border-color 0.3s, box-shadow 0.3s'
+      };
+      
+      const textareaStyle = {
+          ...textareaBaseStyle,
+          borderColor: isValid ? '#374151' : '#ef4444'
+      };
+
+      return (
+        <div style={{width: '100%'}}>
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem'}}>
+                <div onClick={onToggleExpand} style={{display: 'flex', alignItems: 'center', cursor: 'pointer'}}>
+                    <Icon path={isExpanded ? ICONS.chevronDown : ICONS.chevronRight} style={{ marginRight: '0.5rem' }} />
+                    <h3 style={headerStyle}>{title}</h3>
+                </div>
+                <button onClick={handleBeautify} title="Beautify JSON" className="icon-button">
+                    <Icon path={ICONS.beautify} />
+                </button>
+            </div>
+            <div className="collapsible-content" style={{ maxHeight: isExpanded ? '500px' : '0' }}>
+                <textarea
+                    value={json}
+                    onChange={handleChange}
+                    style={textareaStyle}
+                    onFocus={(e) => {
+                        e.target.style.borderColor = '#60a5fa';
+                        e.target.style.boxShadow = '0 0 15px rgba(59, 130, 246, 0.3)';
+                    }}
+                    onBlur={(e) => {
+                        e.target.style.borderColor = isValid ? '#374151' : '#ef4444';
+                        e.target.style.boxShadow = 'none';
+                    }}
+                    spellCheck="false"
+                />
+                {!isValid && <p style={{color: '#f87171', fontSize: '0.75rem', marginTop: '0.25rem'}}>Invalid JSON format.</p>}
+            </div>
+        </div>
+      );
+    });
+
+    const ApiFlowNode = memo(({ step, updateStep, addChildStep, deleteStep, level = 0 }) => {
+        const httpMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+
+        const handleUrlChange = (e) => {
+            const urlString = e.target.value;
+            updateStep(step.id, 'url', urlString);
+
+            try {
+                const url = new URL(urlString, 'http://dummybase.com');
+                const params = Object.fromEntries(url.searchParams.entries());
+                 if (Object.keys(params).length > 0) {
+                     updateStep(step.id, 'queryParams', JSON.stringify(params, null, 2));
+                } else {
+                     updateStep(step.id, 'queryParams', '{}');
+                }
+            } catch (error) {
+                // If URL parsing fails, do nothing
+            }
+        };
+
+        return (
+            <div className="api-flow-node" style={{ position: 'relative', paddingTop: '2rem' }}>
+                {level > 0 && <span style={{ position: 'absolute', top: '2rem', left: '-1.5rem', width: '1.5rem', height: 'calc(50% + 2rem)', borderBottom: '2px solid #4b5563', borderLeft: '2px solid #4b5563', borderRadius: '0 0 0 0.75rem' }}></span>}
+                
+                <div className="api-node-card">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: step.isExpanded ? '1rem' : '0' }}>
+                         <div style={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
+                            <button title={step.isExpanded ? "Collapse" : "Expand"} className="icon-button transparent" onClick={() => updateStep(step.id, 'isExpanded', !step.isExpanded)}>
+                                <Icon path={step.isExpanded ? ICONS.chevronDown : ICONS.chevronRight} />
+                            </button>
+                            <select
+                                value={step.method}
+                                onChange={(e) => updateStep(step.id, 'method', e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="http-method-select"
+                            >
+                                {httpMethods.map(method => <option key={method} value={method}>{method}</option>)}
+                            </select>
+                            <input
+                                type="text"
+                                value={step.title}
+                                onChange={(e) => updateStep(step.id, 'title', e.target.value)}
+                                className="api-node-title"
+                            />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                            <button onClick={() => addChildStep(step.id)} title="Add Child Step" className="icon-button blue">
+                                <Icon path={ICONS.addChild} />
+                            </button>
+                            <button onClick={() => deleteStep(step.id)} title="Delete Step" className="icon-button red">
+                                <Icon path={ICONS.trash} />
+                            </button>
+                        </div>
+                    </div>
+                    <div className="collapsible-content" style={{ maxHeight: step.isExpanded ? '1000px' : '0' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingTop: '1rem' }}>
+                             <div className="api-node-details-grid">
+                                <div className="detail-item">
+                                    <Icon path={ICONS.link} />
+                                    <input
+                                        type="text"
+                                        value={step.url}
+                                        onChange={handleUrlChange}
+                                        placeholder="API Endpoint URL"
+                                        className="detail-input"
+                                    />
+                                </div>
+                                <div className="detail-item">
+                                    <Icon path={ICONS.link} />
+                                    <input
+                                        type="text"
+                                        value={step.repoLink}
+                                        onChange={(e) => updateStep(step.id, 'repoLink', e.target.value)}
+                                        placeholder="Bitbucket Repo Link"
+                                        className="detail-input"
+                                    />
+                                </div>
+                                <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
+                                     <Icon path={ICONS.description} style={{alignSelf: 'flex-start', marginTop: '0.5rem'}}/>
+                                     <textarea
+                                        value={step.description}
+                                        onChange={(e) => updateStep(step.id, 'description', e.target.value)}
+                                        placeholder="API Description..."
+                                        className="detail-textarea"
+                                        rows="3"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <JsonEditor title="Headers" json={step.headers} setJson={(val) => updateStep(step.id, 'headers', val)} isRequest={true} isExpanded={step.isHeadersExpanded} onToggleExpand={() => updateStep(step.id, 'isHeadersExpanded', !step.isHeadersExpanded)} />
+                            
+                            <JsonEditor title="Query Params" json={step.queryParams} setJson={(val) => updateStep(step.id, 'queryParams', val)} isRequest={true} isExpanded={step.isParamsExpanded} onToggleExpand={() => updateStep(step.id, 'isParamsExpanded', !step.isParamsExpanded)} />
+
+                            {step.method !== 'GET' && (
+                                <JsonEditor title="Request Body" json={step.request} setJson={(val) => updateStep(step.id, 'request', val)} isRequest={true} isExpanded={step.isRequestExpanded} onToggleExpand={() => updateStep(step.id, 'isRequestExpanded', !step.isRequestExpanded)} />
+                            )}
+
+                            <JsonEditor title="Response" json={step.response} setJson={(val) => updateStep(step.id, 'response', val)} isRequest={false} isExpanded={step.isResponseExpanded} onToggleExpand={() => updateStep(step.id, 'isResponseExpanded', !step.isResponseExpanded)} />
+                        </div>
+                    </div>
+                </div>
+                
+                <div className="collapsible-content" style={{ maxHeight: step.isExpanded ? '9999px' : '0' }}>
+                    {step.children && step.children.length > 0 && (
+                        <>
+                            <div style={{ display: 'flex', justifyContent: 'flex-start', margin: '1rem 0', marginLeft: '2rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                    <Icon path={ICONS.downArrow} style={{width: '2rem', height: '2rem', color: '#9ca3af'}}/>
+                                     <input
+                                        type="text"
+                                        value={step.outputDescription}
+                                        onChange={(e) => updateStep(step.id, 'outputDescription', e.target.value)}
+                                        className="output-description-input"
+                                        placeholder="Describe data flow..."
+                                    />
+                                </div>
+                            </div>
+
+                            <div style={{ paddingLeft: '3rem', position: 'relative' }}>
+                                <span style={{ position: 'absolute', top: 0, left: 'calc(1.5rem)', width: '2px', height: '100%', background: '#4b5563' }}></span>
+                                {step.children.map(child => (
+                                    <ApiFlowNode key={child.id} step={child} updateStep={updateStep} addChildStep={addChildStep} deleteStep={deleteStep} level={level + 1} />
+                                ))}
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+        );
+    });
+
+    const QuickViewNode = memo(({ node }) => (
+        <div className="quick-view-node-container">
+            <div className="quick-view-node">{node.title}</div>
+            {node.children && node.children.length > 0 && (
+                <>
+                    <div className="quick-view-connector"></div>
+                    <div className="quick-view-children">
+                        {node.children.map(child => <QuickViewNode key={child.id} node={child} />)}
+                    </div>
+                </>
+            )}
+        </div>
+    ));
+
+    const QuickView = ({ flows, onClose }) => {
+        return (
+            <div className="quick-view-overlay" onClick={onClose}>
+                <div className="quick-view-modal" onClick={e => e.stopPropagation()}>
+                    <div className="quick-view-header">
+                        <h2>API Quick View</h2>
+                        <button onClick={onClose} className="icon-button close-button">
+                            <Icon path={ICONS.close} />
+                        </button>
+                    </div>
+                    <div className="quick-view-content">
+                        {flows.map(flow => <QuickViewNode key={flow.id} node={flow} />)}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const addExpansionState = (nodes) => {
+        return nodes.map(node => ({
+            ...node,
+            method: node.method || 'POST',
+            url: node.url || '',
+            description: node.description || '',
+            repoLink: node.repoLink || '',
+            headers: node.headers || '{\n  "Authorization": "Bearer YOUR_TOKEN",\n  "Content-Type": "application/json"\n}',
+            queryParams: node.queryParams || '{}',
+            isExpanded: node.isExpanded !== undefined ? node.isExpanded : false,
+            isRequestExpanded: node.isRequestExpanded !== undefined ? node.isRequestExpanded : false,
+            isResponseExpanded: node.isResponseExpanded !== undefined ? node.isResponseExpanded : false,
+            isHeadersExpanded: node.isHeadersExpanded !== undefined ? node.isHeadersExpanded : false,
+            isParamsExpanded: node.isParamsExpanded !== undefined ? node.isParamsExpanded : false,
+            children: node.children ? addExpansionState(node.children) : []
+        }));
+      };
+        
+      const initialFlows = [
         {
-          "id": 2,
-          "title": "1a. Get Device Details for ESN 1",
-          "url": "https://api.devices.com/details/111222333444",
+          "id": 1,
+          "title": "1. Get Order Details",
+          "url": "https://api.ecommerce.com/orders/ord_123",
+          "description": "Fetches the line items for a specific customer order.",
+          "repoLink": "https://bitbucket.org/ecommerce/order-service",
           "method": "GET",
-          "description": "Gets details for the first device in the order.",
-          "response": "{\n  \"serialNumber\": \"SN-AABBCC1122\",\n  \"model\": \"SuperPhone XI\"\n}",
-          "outputDescription": "Use serialNumber to check warranty",
+          "request": "{}",
+          "response": "{\n  \"orderId\": \"ord_123\",\n  \"lineItems\": [\n    {\n      \"lineId\": 1,\n      \"productId\": \"prod_abc\",\n      \"ESN\": \"111222333444\"\n    },\n    {\n      \"lineId\": 2,\n      \"productId\": \"prod_def\",\n      \"ESN\": \"555666777888\"\n    }\n  ]\n}",
+          "outputDescription": "Use ESN from line items for device lookups",
           "children": [
             {
-              "id": 3,
-              "title": "1a-i. Check Warranty for SN-AABBCC1122",
-              "url": "https://api.warranty.com/check/SN-AABBCC1122",
+              "id": 2,
+              "title": "1a. Get Device Details for ESN 1",
+              "url": "https://api.devices.com/details/111222333444",
               "method": "GET",
-              "description": "Checks warranty status.",
-              "response": "{\n  \"status\": \"Active\",\n  \"expiresOn\": \"2026-09-01\"\n}",
+              "description": "Gets details for the first device in the order.",
+              "response": "{\n  \"serialNumber\": \"SN-AABBCC1122\",\n  \"model\": \"SuperPhone XI\"\n}",
+              "outputDescription": "Use serialNumber to check warranty",
+              "children": [
+                {
+                  "id": 3,
+                  "title": "1a-i. Check Warranty for SN-AABBCC1122",
+                  "url": "https://api.warranty.com/check/SN-AABBCC1122",
+                  "method": "GET",
+                  "description": "Checks warranty status.",
+                  "response": "{\n  \"status\": \"Active\",\n  \"expiresOn\": \"2026-09-01\"\n}",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": 4,
+              "title": "1b. Get Device Details for ESN 2",
+              "url": "https://api.devices.com/details/555666777888",
+              "method": "GET",
+              "description": "Gets details for the second device in the order.",
+              "response": "{\n  \"serialNumber\": \"SN-DDEEFF3344\",\n  \"model\": \"MegaTablet 5\"\n}",
               "children": []
             }
           ]
-        },
-        {
-          "id": 4,
-          "title": "1b. Get Device Details for ESN 2",
-          "url": "https://api.devices.com/details/555666777888",
-          "method": "GET",
-          "description": "Gets details for the second device in the order.",
-          "response": "{\n  \"serialNumber\": \"SN-DDEEFF3344\",\n  \"model\": \"MegaTablet 5\"\n}",
-          "children": []
         }
-      ]
-    }
-  ];
+      ];
 
-  const [flows, setFlows] = useState(() => addExpansionState(initialFlows));
-  const [notification, setNotification] = useState('');
-  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
+      const [flows, setFlows] = useState(() => addExpansionState(initialFlows));
+      const [notification, setNotification] = useState('');
+      const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
 
-  const getIds = useCallback((steps) => steps.reduce((acc, step) => [...acc, step.id, ...getIds(step.children || [])], []), []);
-  const getUniqueId = useCallback(() => Math.max(0, ...getIds(flows)) + 1, [flows, getIds]);
-  const showNotification = useCallback((message) => { setNotification(message); setTimeout(() => setNotification(''), 3000); }, []);
-  
-  const updateStep = useCallback((id, field, value) => {
-    const updateNode = (nodes) => {
-        return nodes.map(node => {
-            if (node.id === id) {
-                return { ...node, [field]: value };
-            }
-            if (node.children) {
-                 return { ...node, children: updateNode(node.children) };
-            }
-            return node;
-        });
-    };
-    setFlows(currentFlows => updateNode(currentFlows));
-  }, []);
-  
-  const addStep = useCallback(() => {
-    const newId = getUniqueId();
-    const newStep = { id: newId, title: `API ${newId}: New Root Step`, url: '', description: '', repoLink: '', request: JSON.stringify({ "data": "value" }, null, 2), response: JSON.stringify({ "result": "success" }, null, 2), outputDescription: "", isExpanded: true, isRequestExpanded: true, children: [] };
-    setFlows(currentFlows => [...currentFlows, addExpansionState([newStep])[0]]);
-  }, [getUniqueId]);
-  
-  const addChildStep = useCallback((parentId) => {
-    const newId = getUniqueId();
-    const newStep = { id: newId, title: `API Child: New Step`, url: '', description: '', repoLink: '', request: JSON.stringify({ "fromParent": "value" }, null, 2), response: JSON.stringify({ "result": "pending" }, null, 2), outputDescription: "", isExpanded: true, isRequestExpanded: true, children: [] };
-    const addStepToParent = (steps) => steps.map(step => (step.id === parentId) ? { ...step, isExpanded: true, children: [...(step.children || []), addExpansionState([newStep])[0]] } : { ...step, children: addStepToParent(step.children || []) });
-    setFlows(currentFlows => addStepToParent(currentFlows));
-  }, [getUniqueId]);
+      const getIds = useCallback((steps) => steps.reduce((acc, step) => [...acc, step.id, ...getIds(step.children || [])], []), []);
+      const getUniqueId = useCallback(() => Math.max(0, ...getIds(flows)) + 1, [flows, getIds]);
+      const showNotification = useCallback((message) => { setNotification(message); setTimeout(() => setNotification(''), 3000); }, []);
+      
+      const updateStep = useCallback((id, field, value) => {
+        const updateNode = (nodes) => {
+            return nodes.map(node => {
+                if (node.id === id) {
+                    return { ...node, [field]: value };
+                }
+                if (node.children) {
+                     return { ...node, children: updateNode(node.children) };
+                }
+                return node;
+            });
+        };
+        setFlows(currentFlows => updateNode(currentFlows));
+      }, []);
+      
+      const addStep = useCallback(() => {
+        const newId = getUniqueId();
+        const newStep = { id: newId, title: `API ${newId}: New Root Step`, url: '', description: '', repoLink: '', request: JSON.stringify({ "data": "value" }, null, 2), response: JSON.stringify({ "result": "success" }, null, 2), outputDescription: "", isExpanded: true, isRequestExpanded: true, children: [] };
+        setFlows(currentFlows => [...currentFlows, addExpansionState([newStep])[0]]);
+      }, [getUniqueId]);
+      
+      const addChildStep = useCallback((parentId) => {
+        const newId = getUniqueId();
+        const newStep = { id: newId, title: `API Child: New Step`, url: '', description: '', repoLink: '', request: JSON.stringify({ "fromParent": "value" }, null, 2), response: JSON.stringify({ "result": "pending" }, null, 2), outputDescription: "", isExpanded: true, isRequestExpanded: true, children: [] };
+        const addStepToParent = (steps) => steps.map(step => (step.id === parentId) ? { ...step, isExpanded: true, children: [...(step.children || []), addExpansionState([newStep])[0]] } : { ...step, children: addStepToParent(step.children || []) });
+        setFlows(currentFlows => addStepToParent(currentFlows));
+      }, [getUniqueId]);
 
-  const deleteStep = useCallback((targetId) => {
-    const filterSteps = (steps) => steps.filter(step => step.id !== targetId).map(step => ({ ...step, children: filterSteps(step.children || []) }));
-    setFlows(currentFlows => filterSteps(currentFlows));
-    showNotification("API Step deleted.");
-  }, [showNotification]);
+      const deleteStep = useCallback((targetId) => {
+        const filterSteps = (steps) => steps.filter(step => step.id !== targetId).map(step => ({ ...step, children: filterSteps(step.children || []) }));
+        setFlows(currentFlows => filterSteps(currentFlows));
+        showNotification("API Step deleted.");
+      }, [showNotification]);
 
-  const handleExport = useCallback(() => {
-      try {
-        const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(flows, null, 2))}`;
-        const link = document.createElement("a");
-        link.href = jsonString; link.download = "api-flow.json"; link.click();
-        showNotification("Flow exported successfully!");
-      } catch (error) { showNotification("Error exporting flow."); }
-  }, [flows, showNotification]);
+      const handleExport = useCallback(() => {
+          try {
+            const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(flows, null, 2))}`;
+            const link = document.createElement("a");
+            link.href = jsonString; link.download = "api-flow.json"; link.click();
+            showNotification("Flow exported successfully!");
+          } catch (error) { showNotification("Error exporting flow."); }
+      }, [flows, showNotification]);
 
-  const handleImport = useCallback((event) => {
-    const fileReader = new FileReader();
-    fileReader.onload = (e) => {
+      const handleImport = useCallback((event) => {
+        const fileReader = new FileReader();
+        fileReader.onload = (e) => {
+            try {
+                const result = JSON.parse(e.target.result);
+                if (Array.isArray(result) && result.length > 0 && 'id' in result[0] && 'title' in result[0] && 'children' in result[0]) {
+                    setFlows(addExpansionState(result));
+                    showNotification("Flow imported successfully!");
+                } else { showNotification("Invalid flow file format."); }
+            } catch (error) { showNotification("Error reading or parsing the file."); }
+        };
+        if(event.target.files[0]) { fileReader.readAsText(event.target.files[0]); }
+      }, [showNotification]);
+
+      const handleCopyToClipboard = useCallback(() => {
         try {
-            const result = JSON.parse(e.target.result);
-            if (Array.isArray(result) && result.length > 0 && 'id' in result[0] && 'title' in result[0] && 'children' in result[0]) {
-                setFlows(addExpansionState(result));
-                showNotification("Flow imported successfully!");
-            } else { showNotification("Invalid flow file format."); }
-        } catch (error) { showNotification("Error reading or parsing the file."); }
-    };
-    if(event.target.files[0]) { fileReader.readAsText(event.target.files[0]); }
-  }, [showNotification]);
+            const jsonString = JSON.stringify(flows, null, 2);
+            const textArea = document.createElement("textarea");
+            textArea.value = jsonString; textArea.style.position = "fixed"; document.body.appendChild(textArea);
+            textArea.focus(); textArea.select();
+            try { document.execCommand('copy'); showNotification("JSON copied to clipboard!"); } 
+            catch (err) { showNotification("Failed to copy JSON."); }
+            document.body.removeChild(textArea);
+        } catch(e) { showNotification("Failed to copy JSON."); }
+      }, [flows, showNotification]);
 
-  const handleCopyToClipboard = useCallback(() => {
-    try {
-        const jsonString = JSON.stringify(flows, null, 2);
-        const textArea = document.createElement("textarea");
-        textArea.value = jsonString; textArea.style.position = "fixed"; document.body.appendChild(textArea);
-        textArea.focus(); textArea.select();
-        try { document.execCommand('copy'); showNotification("JSON copied to clipboard!"); } 
-        catch (err) { showNotification("Failed to copy JSON."); }
-        document.body.removeChild(textArea);
-    } catch(e) { showNotification("Failed to copy JSON."); }
-  }, [flows, showNotification]);
+      const toggleAll = useCallback((expand) => {
+          const toggleNode = (nodes) => nodes.map(node => ({
+              ...node,
+              isExpanded: expand,
+              isRequestExpanded: expand,
+              isResponseExpanded: expand,
+              isHeadersExpanded: expand,
+              isParamsExpanded: expand,
+              children: toggleNode(node.children || [])
+          }));
+          setFlows(currentFlows => toggleNode(currentFlows));
+      }, []);
 
-  const toggleAll = useCallback((expand) => {
-      const toggleNode = (nodes) => nodes.map(node => ({
-          ...node,
-          isExpanded: expand,
-          isRequestExpanded: expand,
-          isResponseExpanded: expand,
-          isHeadersExpanded: expand,
-          isParamsExpanded: expand,
-          children: toggleNode(node.children || [])
-      }));
-      setFlows(currentFlows => toggleNode(currentFlows));
-  }, []);
+    return (
+        <div>
+            <div className="actions-bar">
+               <button onClick={addStep} className="action-button" style={{backgroundColor: '#9333ea'}}>
+                    <Icon path={ICONS.share}/> Add Root API
+                </button>
+                <button onClick={() => toggleAll(true)} className="action-button" style={{backgroundColor: '#059669'}}>
+                    <Icon path={ICONS.expand}/> Expand All
+                </button>
+                <button onClick={() => toggleAll(false)} className="action-button" style={{backgroundColor: '#78716c'}}>
+                    <Icon path={ICONS.collapse}/> Collapse All
+                </button>
+                <button onClick={handleExport} className="action-button" style={{backgroundColor: '#16a34a'}}>
+                    <Icon path={ICONS.download}/> Export Flow
+                </button>
+                 <label className="action-label" style={{backgroundColor: '#2563eb'}}>
+                    <Icon path={ICONS.upload}/> Import Flow
+                    <input type="file" accept=".json" onChange={handleImport} style={{display: 'none'}} />
+                </label>
+                <button onClick={handleCopyToClipboard} className="action-button" style={{backgroundColor: '#4b5563'}}>
+                    <Icon path={ICONS.copy}/> Copy as JSON
+                </button>
+                <button onClick={() => setIsQuickViewOpen(true)} className="action-button" style={{backgroundColor: '#ca8a04'}}>
+                    <Icon path={ICONS.sitemap}/> Quick View
+                </button>
+            </div>
 
-  // --- Styles ---
+            <main>
+              {flows.map((step) => (
+                <ApiFlowNode key={step.id} step={step} updateStep={updateStep} addChildStep={addChildStep} deleteStep={deleteStep} />
+              ))}
+            </main>
+
+            {isQuickViewOpen && <QuickView flows={flows} onClose={() => setIsQuickViewOpen(false)} />}
+            {notification && <div className="notification">{notification}</div>}
+        </div>
+    );
+};
+
+// --- Main App Shell ---
+export default function App() {
+  const [activeTool, setActiveTool] = useState('api_flow');
+
+  const navButtonStyle = (tool) => ({
+      padding: '0.75rem 1.5rem',
+      fontWeight: '600',
+      border: 'none',
+      background: 'transparent',
+      color: activeTool === tool ? 'white' : '#9ca3af',
+      borderBottom: activeTool === tool ? '3px solid #a78bfa' : '3px solid transparent',
+      cursor: 'pointer',
+      transition: 'all 0.2s',
+  });
+    
   const styles = `
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Fira+Code&display=swap');
     
@@ -561,7 +750,6 @@ export default function App() {
         flex-shrink: 0;
     }
     
-    /* Quick View Styles */
     .quick-view-overlay {
         position: fixed;
         top: 0; left: 0;
@@ -644,6 +832,75 @@ export default function App() {
     .quick-view-children > .quick-view-node-container:not(:last-child) {
         margin-bottom: 1rem;
     }
+
+    .tool-container {
+        background: linear-gradient(145deg, rgba(31, 41, 55, 0.4), rgba(17, 24, 39, 0.4));
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 0.75rem;
+        padding: 2rem;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        animation: fadeIn 0.5s ease-out forwards;
+    }
+    .tool-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-top: 0;
+        margin-bottom: 1.5rem;
+        text-align: center;
+    }
+    .tool-textarea {
+        width: 100%;
+        height: 20rem;
+        background-color: rgba(17, 24, 39, 0.8);
+        border: 1px solid #4b5563;
+        color: #e5e7eb;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        font-family: 'Fira Code', monospace;
+        resize: vertical;
+    }
+    .tool-error {
+        color: #f87171;
+        margin-top: 1rem;
+        text-align: center;
+    }
+    .json-compare-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+    }
+    .tool-result {
+        margin-top: 1.5rem;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border: 2px solid;
+        text-align: center;
+        font-weight: 600;
+    }
+    .json-editor-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+        color: #d1d5db;
+    }
+    .diff-view {
+        background-color: rgba(17, 24, 39, 0.8);
+        border: 1px solid #4b5563;
+        color: #e5e7eb;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        font-family: 'Fira Code', monospace;
+        white-space: pre-wrap;
+        height: 20rem;
+        overflow-y: auto;
+    }
+    .highlight {
+        background-color: rgba(250, 204, 21, 0.3);
+        border-radius: 0.2rem;
+    }
   `;
 
   return (
@@ -652,43 +909,20 @@ export default function App() {
       <div className="aurora-background"></div>
       <div className="container">
         <header className="header">
-          <h1>API Flow Visualizer</h1>
-          <p>Visualize, edit, and share multi-step API interactions with parent-child relationships.</p>
+          <h1>Dev Toolkit</h1>
+          <p>A suite of tools for developers.</p>
         </header>
+
+        <nav style={{ display: 'flex', justifyContent: 'center', borderBottom: '1px solid #374151', marginBottom: '2rem' }}>
+            <button style={navButtonStyle('beautifier')} onClick={() => setActiveTool('beautifier')}>JSON Beautifier</button>
+            <button style={navButtonStyle('compare')} onClick={() => setActiveTool('compare')}>JSON Compare</button>
+            <button style={navButtonStyle('api_flow')} onClick={() => setActiveTool('api_flow')}>API Flow Visualizer</button>
+        </nav>
+
+        {activeTool === 'beautifier' && <JsonBeautifier />}
+        {activeTool === 'compare' && <JsonCompare />}
+        {activeTool === 'api_flow' && <ApiFlowVisualizer />}
         
-        <div className="actions-bar">
-           <button onClick={addStep} className="action-button" style={{backgroundColor: '#9333ea'}}>
-                <Icon path={ICONS.share}/> Add Root API
-            </button>
-            <button onClick={() => toggleAll(true)} className="action-button" style={{backgroundColor: '#059669'}}>
-                <Icon path={ICONS.expand}/> Expand All
-            </button>
-            <button onClick={() => toggleAll(false)} className="action-button" style={{backgroundColor: '#78716c'}}>
-                <Icon path={ICONS.collapse}/> Collapse All
-            </button>
-            <button onClick={handleExport} className="action-button" style={{backgroundColor: '#16a34a'}}>
-                <Icon path={ICONS.download}/> Export Flow
-            </button>
-             <label className="action-label" style={{backgroundColor: '#2563eb'}}>
-                <Icon path={ICONS.upload}/> Import Flow
-                <input type="file" accept=".json" onChange={handleImport} style={{display: 'none'}} />
-            </label>
-            <button onClick={handleCopyToClipboard} className="action-button" style={{backgroundColor: '#4b5563'}}>
-                <Icon path={ICONS.copy}/> Copy as JSON
-            </button>
-            <button onClick={() => setIsQuickViewOpen(true)} className="action-button" style={{backgroundColor: '#ca8a04'}}>
-                <Icon path={ICONS.sitemap}/> Quick View
-            </button>
-        </div>
-
-        <main>
-          {flows.map((step) => (
-            <ApiFlowNode key={step.id} step={step} updateStep={updateStep} addChildStep={addChildStep} deleteStep={deleteStep} />
-          ))}
-        </main>
-
-        {isQuickViewOpen && <QuickView flows={flows} onClose={() => setIsQuickViewOpen(false)} />}
-        {notification && <div className="notification">{notification}</div>}
       </div>
     </div>
   );
