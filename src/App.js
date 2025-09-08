@@ -174,7 +174,7 @@ const JsonCompare = () => {
 // --- Tool 3: API Flow Visualizer ---
 const ApiFlowVisualizer = () => {
 
-    const JsonEditor = memo(({ title, json, setJson, isRequest, isExpanded, onToggleExpand }) => {
+    const JsonEditor = memo(({ title, json, setJson, isRequest, isExpanded, onToggleExpand, onBlur }) => {
       const [isValid, setIsValid] = useState(true);
 
       const handleChange = (e) => {
@@ -254,6 +254,7 @@ const ApiFlowVisualizer = () => {
                     onBlur={(e) => {
                         e.target.style.borderColor = isValid ? '#374151' : '#ef4444';
                         e.target.style.boxShadow = 'none';
+                        if(onBlur) onBlur();
                     }}
                     spellCheck="false"
                 />
@@ -263,24 +264,18 @@ const ApiFlowVisualizer = () => {
       );
     });
 
-    // CORRECTED ApiFlowNode with local state management
     const ApiFlowNode = memo(({ step, updateStep, addChildStep, deleteStep, level = 0 }) => {
         const httpMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
-
-        // Local state for all input fields
         const [localStep, setLocalStep] = useState(step);
 
-        // Sync local state if the prop changes from above
         useEffect(() => {
             setLocalStep(step);
         }, [step]);
 
-        // Update local state on every change
         const handleLocalChange = (field, value) => {
             setLocalStep(prevState => ({ ...prevState, [field]: value }));
         };
 
-        // Update the global state only on blur (when user is done editing)
         const handleBlur = (field) => {
             if (step[field] !== localStep[field]) {
                 updateStep(step.id, field, localStep[field]);
@@ -306,7 +301,7 @@ const ApiFlowVisualizer = () => {
                 updateStep(step.id, 'queryParams', localStep.queryParams);
             }
         };
-        
+
         const handleJsonChange = (field, value) => {
              setLocalStep(prevState => ({...prevState, [field]: value}));
         };
@@ -435,15 +430,16 @@ const ApiFlowVisualizer = () => {
     });
 
     const QuickViewNode = memo(({ node }) => (
-        <div className="quick-view-node-container">
-            <div className="quick-view-node">{node.title}</div>
+        <div className="mindmap-node">
+            <div className="mindmap-title">{node.title}</div>
             {node.children && node.children.length > 0 && (
-                <>
-                    <div className="quick-view-connector"></div>
-                    <div className="quick-view-children">
-                        {node.children.map(child => <QuickViewNode key={child.id} node={child} />)}
-                    </div>
-                </>
+                <ul className="mindmap-children">
+                    {node.children.map(child => (
+                        <li key={child.id}>
+                            <QuickViewNode node={child} />
+                        </li>
+                    ))}
+                </ul>
             )}
         </div>
     ));
@@ -451,7 +447,7 @@ const ApiFlowVisualizer = () => {
     const QuickView = ({ flows, onClose }) => {
         return (
             <div className="quick-view-overlay" onClick={onClose}>
-                <div className="quick-view-modal" onClick={e => e.stopPropagation()}>
+                <div className="quick-view-modal" onClick={e => e.stopPropagation()} style={{maxWidth: '90vw', width: 'auto'}}>
                     <div className="quick-view-header">
                         <h2>API Quick View</h2>
                         <button onClick={onClose} className="icon-button close-button">
@@ -475,11 +471,11 @@ const ApiFlowVisualizer = () => {
             repoLink: node.repoLink || '',
             headers: node.headers || '{\n  "Authorization": "Bearer YOUR_TOKEN",\n  "Content-Type": "application/json"\n}',
             queryParams: node.queryParams || '{}',
-            isExpanded: node.isExpanded !== undefined ? node.isExpanded : true,
-            isRequestExpanded: node.isRequestExpanded !== undefined ? node.isRequestExpanded : true,
-            isResponseExpanded: node.isResponseExpanded !== undefined ? node.isResponseExpanded : true,
-            isHeadersExpanded: node.isHeadersExpanded !== undefined ? node.isHeadersExpanded : true,
-            isParamsExpanded: node.isParamsExpanded !== undefined ? node.isParamsExpanded : true,
+            isExpanded: node.isExpanded !== undefined ? node.isExpanded : false,
+            isRequestExpanded: node.isRequestExpanded !== undefined ? node.isRequestExpanded : false,
+            isResponseExpanded: node.isResponseExpanded !== undefined ? node.isResponseExpanded : false,
+            isHeadersExpanded: node.isHeadersExpanded !== undefined ? node.isHeadersExpanded : false,
+            isParamsExpanded: node.isParamsExpanded !== undefined ? node.isParamsExpanded : false,
             children: node.children ? addExpansionState(node.children) : []
         }));
       };
@@ -532,6 +528,7 @@ const ApiFlowVisualizer = () => {
       const [flows, setFlows] = useState(() => addExpansionState(initialFlows));
       const [notification, setNotification] = useState('');
       const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
+      const [isCurlImportOpen, setIsCurlImportOpen] = useState(false);
 
       const showNotification = useCallback((message) => { setNotification(message); setTimeout(() => setNotification(''), 3000); }, []);
       
@@ -557,16 +554,24 @@ const ApiFlowVisualizer = () => {
 
       const getIds = useCallback((steps) => steps.reduce((acc, step) => [...acc, step.id, ...getIds(step.children || [])], []), []);
       
-      const addStep = useCallback(() => {
+      const addStep = useCallback((newStepData) => {
         setFlows(currentFlows => {
             const allIds = getIds(currentFlows);
             const newId = (allIds.length > 0 ? Math.max(...allIds) : 0) + 1;
-            const newStep = { id: newId, title: `API ${newId}: New Root Step`, url: '', description: '', repoLink: '', request: JSON.stringify({ "data": "value" }, null, 2), response: JSON.stringify({ "result": "success" }, null, 2), outputDescription: "", isExpanded: true, isRequestExpanded: true, children: [] };
+            const newStep = { 
+                id: newId, 
+                title: `API ${newId}: New Step`, 
+                request: JSON.stringify({ "data": "value" }, null, 2), 
+                response: JSON.stringify({ "result": "success" }, null, 2), 
+                outputDescription: "", 
+                children: [],
+                ...newStepData
+            };
             return [...currentFlows, addExpansionState([newStep])[0]];
         });
       }, [getIds]);
       
-      const addChildStep = useCallback((parentId) => {
+      const addChildStep = useCallback((parentId, newStepData) => {
         setFlows(currentFlows => {
             const addChildRecursively = (nodes, newStep) => {
                 return nodes.map(node => {
@@ -585,7 +590,15 @@ const ApiFlowVisualizer = () => {
             
             const allIds = getIds(currentFlows);
             const newId = (allIds.length > 0 ? Math.max(...allIds) : 0) + 1;
-            const newStep = { id: newId, title: `API Child: New Step`, url: '', description: '', repoLink: '', request: JSON.stringify({ "fromParent": "value" }, null, 2), response: JSON.stringify({ "result": "pending" }, null, 2), outputDescription: "", isExpanded: true, isRequestExpanded: true, children: [] };
+            const newStep = { 
+                id: newId, 
+                title: `API Child: New Step`,
+                request: JSON.stringify({ "fromParent": "value" }, null, 2), 
+                response: JSON.stringify({ "result": "pending" }, null, 2), 
+                outputDescription: "",
+                children: [],
+                ...newStepData
+            };
             const processedNewStep = addExpansionState([newStep])[0];
             return addChildRecursively(currentFlows, processedNewStep);
         });
@@ -605,6 +618,81 @@ const ApiFlowVisualizer = () => {
             showNotification("Flow exported successfully!");
           } catch (error) { showNotification("Error exporting flow."); }
       }, [flows, showNotification]);
+
+      const handleExportForPostman = useCallback(() => {
+        const transformToPostman = (nodes) => {
+            return nodes.map(node => {
+                const postmanRequest = {
+                    name: node.title || 'Untitled Request',
+                    request: {
+                        method: node.method || 'GET',
+                        header: [],
+                        body: undefined,
+                        url: { raw: node.url || '' },
+                        description: node.description || ''
+                    }
+                };
+
+                try {
+                    const url = new URL(node.url);
+                    postmanRequest.request.url = {
+                        raw: node.url,
+                        protocol: url.protocol.replace(':', ''),
+                        host: url.hostname.split('.'),
+                        path: url.pathname.split('/').filter(p => p),
+                        query: Array.from(url.searchParams.entries()).map(([key, value]) => ({ key, value }))
+                    };
+                } catch (e) { /* Fallback for invalid URLs */ }
+
+                try {
+                    const headers = JSON.parse(node.headers);
+                    postmanRequest.request.header = Object.entries(headers).map(([key, value]) => ({ key, value: String(value) }));
+                } catch (e) { /* Ignore malformed headers */ }
+
+                if (node.method !== 'GET' && node.request) {
+                    try {
+                        JSON.parse(node.request);
+                        postmanRequest.request.body = {
+                            mode: 'raw',
+                            raw: node.request,
+                            options: { raw: { language: 'json' } }
+                        };
+                    } catch (e) { /* Ignore malformed body */ }
+                }
+
+                if (node.children && node.children.length > 0) {
+                    return {
+                        name: node.title,
+                        item: [
+                            postmanRequest,
+                            ...transformToPostman(node.children)
+                        ]
+                    };
+                }
+
+                return postmanRequest;
+            });
+        };
+
+        try {
+            const collection = {
+                info: {
+                    _postman_id: crypto.randomUUID(),
+                    name: "API Flow Export",
+                    schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+                },
+                item: transformToPostman(flows)
+            };
+            const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(collection, null, 2))}`;
+            const link = document.createElement("a");
+            link.href = jsonString;
+            link.download = "api-flow.postman_collection.json";
+            link.click();
+            showNotification("Postman collection exported successfully!");
+        } catch (error) {
+            showNotification("Error exporting for Postman.");
+        }
+    }, [flows, showNotification]);
 
       const handleImport = useCallback((event) => {
         const fileReader = new FileReader();
@@ -644,12 +732,110 @@ const ApiFlowVisualizer = () => {
           }));
           setFlows(currentFlows => toggleNode(currentFlows));
       }, []);
+      
+      const CurlImportModal = ({ onClose, onImport }) => {
+        const [curl, setCurl] = useState('');
+        const [parentId, setParentId] = useState(null);
+        const [apiName, setApiName] = useState('');
+
+        const handleImportClick = () => {
+            onImport(curl, parentId, apiName);
+            onClose();
+        };
+        
+        const flattenFlows = (flows, level = 0) => {
+            let options = [];
+            flows.forEach(flow => {
+                options.push({ value: flow.id, label: `${'--'.repeat(level)} ${flow.title}` });
+                if (flow.children) {
+                    options = options.concat(flattenFlows(flow.children, level + 1));
+                }
+            });
+            return options;
+        };
+
+        return (
+             <div className="quick-view-overlay" onClick={onClose}>
+                <div className="quick-view-modal" onClick={e => e.stopPropagation()}>
+                    <div className="quick-view-header">
+                        <h2>Import from cURL</h2>
+                        <button onClick={onClose} className="icon-button close-button"><Icon path={ICONS.close} /></button>
+                    </div>
+                    <div className="quick-view-content">
+                        <textarea
+                            value={curl}
+                            onChange={(e) => setCurl(e.target.value)}
+                            className="tool-textarea"
+                            placeholder="Paste your cURL command here..."
+                            style={{height: '10rem', marginBottom: '1rem'}}
+                        />
+                         <input
+                            type="text"
+                            value={apiName}
+                            onChange={(e) => setApiName(e.target.value)}
+                            placeholder="API Name (Optional)"
+                            className="detail-input"
+                            style={{marginBottom: '1rem'}}
+                        />
+                        <select
+                            value={parentId || ''}
+                            onChange={(e) => setParentId(e.target.value ? parseInt(e.target.value, 10) : null)}
+                            className="http-method-select"
+                            style={{width: '100%', padding: '0.5rem', marginBottom: '1rem'}}
+                        >
+                            <option value="">Import as New Root</option>
+                            {flattenFlows(flows).map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                        </select>
+                        <button onClick={handleImportClick} className="action-button" style={{backgroundColor: '#16a34a'}}>Import</button>
+                    </div>
+                </div>
+            </div>
+        );
+      };
+
+      const handleCurlImport = (curl, parentId, apiName) => {
+        try {
+            const data = {};
+            const headers = {};
+            
+            data.title = apiName || 'New API from cURL';
+            
+            const urlMatch = curl.match(/'(.*?)'/);
+            data.url = urlMatch ? urlMatch[1] : '';
+
+            const methodMatch = curl.match(/-X\s+([A-Z]+)/);
+            data.method = methodMatch ? methodMatch[1] : 'GET';
+            
+            const headerMatches = [...curl.matchAll(/-H\s+'(.*?)'/g)];
+            headerMatches.forEach(match => {
+                const [key, value] = match[1].split(': ');
+                headers[key] = value;
+            });
+            data.headers = JSON.stringify(headers, null, 2);
+            
+            const dataMatch = curl.match(/--data-raw\s+'(.*?)'/);
+            data.request = dataMatch ? JSON.stringify(JSON.parse(dataMatch[1]), null, 2) : '{}';
+
+            if (parentId) {
+                addChildStep(parentId, data);
+            } else {
+                addStep(data);
+            }
+            showNotification('cURL imported successfully!');
+        } catch (error) {
+            showNotification('Failed to parse cURL command.');
+        }
+      };
+
 
     return (
         <div>
             <div className="actions-bar">
-               <button onClick={addStep} className="action-button" style={{backgroundColor: '#9333ea'}}>
+               <button onClick={() => addStep({})} className="action-button" style={{backgroundColor: '#9333ea'}}>
                     <Icon path={ICONS.share}/> Add Root API
+                </button>
+                <button onClick={() => setIsCurlImportOpen(true)} className="action-button" style={{backgroundColor: '#0ea5e9'}}>
+                    <Icon path={ICONS.upload}/> Import from cURL
                 </button>
                 <button onClick={() => toggleAll(true)} className="action-button" style={{backgroundColor: '#059669'}}>
                     <Icon path={ICONS.expand}/> Expand All
@@ -659,6 +845,9 @@ const ApiFlowVisualizer = () => {
                 </button>
                 <button onClick={handleExport} className="action-button" style={{backgroundColor: '#16a34a'}}>
                     <Icon path={ICONS.download}/> Export Flow
+                </button>
+                 <button onClick={handleExportForPostman} className="action-button" style={{backgroundColor: '#ff6c37'}}>
+                    <Icon path={ICONS.download}/> Export for Postman
                 </button>
                  <label className="action-label" style={{backgroundColor: '#2563eb'}}>
                     <Icon path={ICONS.upload}/> Import Flow
@@ -679,6 +868,7 @@ const ApiFlowVisualizer = () => {
             </main>
 
             {isQuickViewOpen && <QuickView flows={flows} onClose={() => setIsQuickViewOpen(false)} />}
+            {isCurlImportOpen && <CurlImportModal onClose={() => setIsCurlImportOpen(false)} onImport={handleCurlImport} />}
             {notification && <div className="notification">{notification}</div>}
         </div>
     );
@@ -834,7 +1024,7 @@ export default function App() {
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 1rem;
         width: 90vw;
-        height: 80vh;
+        max-width: 48rem;
         box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
         display: flex;
         flex-direction: column;
@@ -859,44 +1049,72 @@ export default function App() {
         overflow: auto;
         flex-grow: 1;
     }
-    .quick-view-node-container {
+    
+    .mindmap-node {
         display: flex;
         align-items: center;
-        margin: 1rem 0;
+        position: relative;
     }
-    .quick-view-node {
+    .mindmap-title {
         background-color: #4b5563;
         color: white;
-        padding: 0.75rem 1.5rem;
-        border-radius: 0.5rem;
+        padding: 0.5rem 1.25rem;
+        border-radius: 9999px;
         font-weight: 600;
         white-space: nowrap;
         box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-    }
-    .quick-view-connector {
-        width: 3rem;
-        height: 2px;
-        background-color: #6b7280;
-    }
-    .quick-view-children {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
+        border: 2px solid #6b7280;
         position: relative;
-        padding-left: 3rem;
+        z-index: 1;
     }
-    .quick-view-children::before {
+    .mindmap-children {
+        list-style-type: none;
+        padding-left: 60px;
+        margin-left: 20px;
+        position: relative;
+    }
+    .mindmap-children::before {
         content: '';
         position: absolute;
         left: 0;
         top: 50%;
         transform: translateY(-50%);
-        width: 3rem;
+        width: 40px;
         height: 2px;
         background-color: #6b7280;
     }
-    .quick-view-children > .quick-view-node-container:not(:last-child) {
-        margin-bottom: 1rem;
+    .mindmap-children li {
+        position: relative;
+        padding: 10px 0;
+    }
+    .mindmap-children li::before {
+        content: '';
+        position: absolute;
+        left: -20px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 20px;
+        height: 2px;
+        background-color: #6b7280;
+    }
+    .mindmap-children li::after {
+        content: '';
+        position: absolute;
+        left: -20px;
+        top: 0;
+        height: 100%;
+        width: 2px;
+        background-color: #6b7280;
+    }
+    .mindmap-children li:last-child::after {
+        height: 50%;
+    }
+    .mindmap-children li:first-child::after {
+        top: 50%;
+        height: 50%;
+    }
+    .mindmap-children li:only-child::after {
+        display: none;
     }
 
     .tool-container {
