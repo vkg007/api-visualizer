@@ -1,4 +1,4 @@
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useCallback, memo, useEffect } from 'react';
 
 // --- Helper Components ---
 
@@ -18,7 +18,7 @@ const ICONS = {
   addChild: "M13 7h-2v4H7v2h4v4h2v-4h4v-2h-4V7zm-1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z",
   chevronRight: "M8.59,16.59L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.59Z",
   chevronDown: "M7.41,8.59L12,13.17L16.59,8.59L18,10L12,16L6,10L7.41,8.59Z",
-  link: "M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z",
+  link: "M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1-3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z",
   description: "M4 6h16v2H4zm0 4h16v2H4zm0 4h12v2H4z",
   sitemap: "M12.75 3.5a.75.75 0 00-1.5 0v1.5h-1.5a.75.75 0 000 1.5h1.5v1.5a.75.75 0 001.5 0V6.5h1.5a.75.75 0 000-1.5H12.75V3.5zM6 11.25a.75.75 0 000 1.5h12a.75.75 0 000-1.5H6zM12.75 16.25a.75.75 0 00-1.5 0v1.5h-1.5a.75.75 0 000 1.5h1.5v1.5a.75.75 0 001.5 0v-1.5h1.5a.75.75 0 000-1.5H12.75v-1.5z",
   close: "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z",
@@ -263,23 +263,57 @@ const ApiFlowVisualizer = () => {
       );
     });
 
+    // CORRECTED ApiFlowNode with local state management
     const ApiFlowNode = memo(({ step, updateStep, addChildStep, deleteStep, level = 0 }) => {
         const httpMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
+        // Local state for all input fields
+        const [localStep, setLocalStep] = useState(step);
+
+        // Sync local state if the prop changes from above
+        useEffect(() => {
+            setLocalStep(step);
+        }, [step]);
+
+        // Update local state on every change
+        const handleLocalChange = (field, value) => {
+            setLocalStep(prevState => ({ ...prevState, [field]: value }));
+        };
+
+        // Update the global state only on blur (when user is done editing)
+        const handleBlur = (field) => {
+            if (step[field] !== localStep[field]) {
+                updateStep(step.id, field, localStep[field]);
+            }
+        };
+
         const handleUrlChange = (e) => {
             const urlString = e.target.value;
-            updateStep(step.id, 'url', urlString);
-
+            handleLocalChange('url', urlString);
             try {
                 const url = new URL(urlString, 'http://dummybase.com');
                 const params = Object.fromEntries(url.searchParams.entries());
-                 if (Object.keys(params).length > 0) {
-                     updateStep(step.id, 'queryParams', JSON.stringify(params, null, 2));
-                } else {
-                     updateStep(step.id, 'queryParams', '{}');
-                }
-            } catch (error) {
-                // If URL parsing fails, do nothing
+                const paramsString = Object.keys(params).length > 0 ? JSON.stringify(params, null, 2) : '{}';
+                handleLocalChange('queryParams', paramsString);
+            } catch (error) { /* ignore */ }
+        };
+
+        const handleUrlBlur = () => {
+            if (step.url !== localStep.url) {
+                updateStep(step.id, 'url', localStep.url);
+            }
+            if (step.queryParams !== localStep.queryParams) {
+                updateStep(step.id, 'queryParams', localStep.queryParams);
+            }
+        };
+        
+        const handleJsonChange = (field, value) => {
+             setLocalStep(prevState => ({...prevState, [field]: value}));
+        };
+        
+        const handleJsonBlur = (field) => {
+            if (step[field] !== localStep[field]) {
+                 updateStep(step.id, field, localStep[field]);
             }
         };
 
@@ -288,14 +322,15 @@ const ApiFlowVisualizer = () => {
                 {level > 0 && <span style={{ position: 'absolute', top: '2rem', left: '-1.5rem', width: '1.5rem', height: 'calc(50% + 2rem)', borderBottom: '2px solid #4b5563', borderLeft: '2px solid #4b5563', borderRadius: '0 0 0 0.75rem' }}></span>}
                 
                 <div className="api-node-card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: step.isExpanded ? '1rem' : '0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: localStep.isExpanded ? '1rem' : '0' }}>
                          <div style={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
-                            <button title={step.isExpanded ? "Collapse" : "Expand"} className="icon-button transparent" onClick={() => updateStep(step.id, 'isExpanded', !step.isExpanded)}>
-                                <Icon path={step.isExpanded ? ICONS.chevronDown : ICONS.chevronRight} />
+                            <button title={localStep.isExpanded ? "Collapse" : "Expand"} className="icon-button transparent" onClick={() => updateStep(step.id, 'isExpanded', !localStep.isExpanded)}>
+                                <Icon path={localStep.isExpanded ? ICONS.chevronDown : ICONS.chevronRight} />
                             </button>
                             <select
-                                value={step.method}
-                                onChange={(e) => updateStep(step.id, 'method', e.target.value)}
+                                value={localStep.method}
+                                onChange={(e) => handleLocalChange('method', e.target.value)}
+                                onBlur={() => handleBlur('method')}
                                 onClick={(e) => e.stopPropagation()}
                                 className="http-method-select"
                             >
@@ -303,8 +338,9 @@ const ApiFlowVisualizer = () => {
                             </select>
                             <input
                                 type="text"
-                                value={step.title}
-                                onChange={(e) => updateStep(step.id, 'title', e.target.value)}
+                                value={localStep.title}
+                                onChange={(e) => handleLocalChange('title', e.target.value)}
+                                onBlur={() => handleBlur('title')}
                                 className="api-node-title"
                             />
                         </div>
@@ -317,15 +353,16 @@ const ApiFlowVisualizer = () => {
                             </button>
                         </div>
                     </div>
-                    <div className="collapsible-content" style={{ maxHeight: step.isExpanded ? '1000px' : '0' }}>
+                    <div className="collapsible-content" style={{ maxHeight: localStep.isExpanded ? '1000px' : '0' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingTop: '1rem' }}>
                              <div className="api-node-details-grid">
                                 <div className="detail-item">
                                     <Icon path={ICONS.link} />
                                     <input
                                         type="text"
-                                        value={step.url}
+                                        value={localStep.url}
                                         onChange={handleUrlChange}
+                                        onBlur={handleUrlBlur}
                                         placeholder="API Endpoint URL"
                                         className="detail-input"
                                     />
@@ -334,8 +371,9 @@ const ApiFlowVisualizer = () => {
                                     <Icon path={ICONS.link} />
                                     <input
                                         type="text"
-                                        value={step.repoLink}
-                                        onChange={(e) => updateStep(step.id, 'repoLink', e.target.value)}
+                                        value={localStep.repoLink}
+                                        onChange={(e) => handleLocalChange('repoLink', e.target.value)}
+                                        onBlur={() => handleBlur('repoLink')}
                                         placeholder="Bitbucket Repo Link"
                                         className="detail-input"
                                     />
@@ -343,8 +381,9 @@ const ApiFlowVisualizer = () => {
                                 <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
                                      <Icon path={ICONS.description} style={{alignSelf: 'flex-start', marginTop: '0.5rem'}}/>
                                      <textarea
-                                        value={step.description}
-                                        onChange={(e) => updateStep(step.id, 'description', e.target.value)}
+                                        value={localStep.description}
+                                        onChange={(e) => handleLocalChange('description', e.target.value)}
+                                        onBlur={() => handleBlur('description')}
                                         placeholder="API Description..."
                                         className="detail-textarea"
                                         rows="3"
@@ -352,29 +391,30 @@ const ApiFlowVisualizer = () => {
                                 </div>
                             </div>
                             
-                            <JsonEditor title="Headers" json={step.headers} setJson={(val) => updateStep(step.id, 'headers', val)} isRequest={true} isExpanded={step.isHeadersExpanded} onToggleExpand={() => updateStep(step.id, 'isHeadersExpanded', !step.isHeadersExpanded)} />
+                            <JsonEditor title="Headers" json={localStep.headers} setJson={(val) => handleJsonChange('headers', val)} onBlur={() => handleJsonBlur('headers')} isRequest={true} isExpanded={localStep.isHeadersExpanded} onToggleExpand={() => updateStep(step.id, 'isHeadersExpanded', !localStep.isHeadersExpanded)} />
                             
-                            <JsonEditor title="Query Params" json={step.queryParams} setJson={(val) => updateStep(step.id, 'queryParams', val)} isRequest={true} isExpanded={step.isParamsExpanded} onToggleExpand={() => updateStep(step.id, 'isParamsExpanded', !step.isParamsExpanded)} />
+                            <JsonEditor title="Query Params" json={localStep.queryParams} setJson={(val) => handleJsonChange('queryParams', val)} onBlur={() => handleJsonBlur('queryParams')} isRequest={true} isExpanded={localStep.isParamsExpanded} onToggleExpand={() => updateStep(step.id, 'isParamsExpanded', !localStep.isParamsExpanded)} />
 
-                            {step.method !== 'GET' && (
-                                <JsonEditor title="Request Body" json={step.request} setJson={(val) => updateStep(step.id, 'request', val)} isRequest={true} isExpanded={step.isRequestExpanded} onToggleExpand={() => updateStep(step.id, 'isRequestExpanded', !step.isRequestExpanded)} />
+                            {localStep.method !== 'GET' && (
+                                <JsonEditor title="Request Body" json={localStep.request} setJson={(val) => handleJsonChange('request', val)} onBlur={() => handleJsonBlur('request')} isRequest={true} isExpanded={localStep.isRequestExpanded} onToggleExpand={() => updateStep(step.id, 'isRequestExpanded', !localStep.isRequestExpanded)} />
                             )}
 
-                            <JsonEditor title="Response" json={step.response} setJson={(val) => updateStep(step.id, 'response', val)} isRequest={false} isExpanded={step.isResponseExpanded} onToggleExpand={() => updateStep(step.id, 'isResponseExpanded', !step.isResponseExpanded)} />
+                            <JsonEditor title="Response" json={localStep.response} setJson={(val) => handleJsonChange('response', val)} onBlur={() => handleJsonBlur('response')} isRequest={false} isExpanded={localStep.isResponseExpanded} onToggleExpand={() => updateStep(step.id, 'isResponseExpanded', !localStep.isResponseExpanded)} />
                         </div>
                     </div>
                 </div>
                 
-                <div className="collapsible-content" style={{ maxHeight: step.isExpanded ? '9999px' : '0' }}>
-                    {step.children && step.children.length > 0 && (
+                <div className="collapsible-content" style={{ maxHeight: localStep.isExpanded ? '9999px' : '0' }}>
+                    {localStep.children && localStep.children.length > 0 && (
                         <>
                             <div style={{ display: 'flex', justifyContent: 'flex-start', margin: '1rem 0', marginLeft: '2rem' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                                     <Icon path={ICONS.downArrow} style={{width: '2rem', height: '2rem', color: '#9ca3af'}}/>
                                      <input
                                         type="text"
-                                        value={step.outputDescription}
-                                        onChange={(e) => updateStep(step.id, 'outputDescription', e.target.value)}
+                                        value={localStep.outputDescription}
+                                        onChange={(e) => handleLocalChange('outputDescription', e.target.value)}
+                                        onBlur={() => handleBlur('outputDescription')}
                                         className="output-description-input"
                                         placeholder="Describe data flow..."
                                     />
@@ -383,7 +423,7 @@ const ApiFlowVisualizer = () => {
 
                             <div style={{ paddingLeft: '3rem', position: 'relative' }}>
                                 <span style={{ position: 'absolute', top: 0, left: 'calc(1.5rem)', width: '2px', height: '100%', background: '#4b5563' }}></span>
-                                {step.children.map(child => (
+                                {localStep.children.map(child => (
                                     <ApiFlowNode key={child.id} step={child} updateStep={updateStep} addChildStep={addChildStep} deleteStep={deleteStep} level={level + 1} />
                                 ))}
                             </div>
@@ -435,11 +475,11 @@ const ApiFlowVisualizer = () => {
             repoLink: node.repoLink || '',
             headers: node.headers || '{\n  "Authorization": "Bearer YOUR_TOKEN",\n  "Content-Type": "application/json"\n}',
             queryParams: node.queryParams || '{}',
-            isExpanded: node.isExpanded !== undefined ? node.isExpanded : false,
-            isRequestExpanded: node.isRequestExpanded !== undefined ? node.isRequestExpanded : false,
-            isResponseExpanded: node.isResponseExpanded !== undefined ? node.isResponseExpanded : false,
-            isHeadersExpanded: node.isHeadersExpanded !== undefined ? node.isHeadersExpanded : false,
-            isParamsExpanded: node.isParamsExpanded !== undefined ? node.isParamsExpanded : false,
+            isExpanded: node.isExpanded !== undefined ? node.isExpanded : true,
+            isRequestExpanded: node.isRequestExpanded !== undefined ? node.isRequestExpanded : true,
+            isResponseExpanded: node.isResponseExpanded !== undefined ? node.isResponseExpanded : true,
+            isHeadersExpanded: node.isHeadersExpanded !== undefined ? node.isHeadersExpanded : true,
+            isParamsExpanded: node.isParamsExpanded !== undefined ? node.isParamsExpanded : true,
             children: node.children ? addExpansionState(node.children) : []
         }));
       };
@@ -493,40 +533,66 @@ const ApiFlowVisualizer = () => {
       const [notification, setNotification] = useState('');
       const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
 
-      const getIds = useCallback((steps) => steps.reduce((acc, step) => [...acc, step.id, ...getIds(step.children || [])], []), []);
-      const getUniqueId = useCallback(() => Math.max(0, ...getIds(flows)) + 1, [flows, getIds]);
       const showNotification = useCallback((message) => { setNotification(message); setTimeout(() => setNotification(''), 3000); }, []);
       
       const updateStep = useCallback((id, field, value) => {
-        const updateNode = (nodes) => {
-            return nodes.map(node => {
-                if (node.id === id) {
-                    return { ...node, [field]: value };
-                }
-                if (node.children) {
-                     return { ...node, children: updateNode(node.children) };
-                }
-                return node;
-            });
-        };
-        setFlows(currentFlows => updateNode(currentFlows));
+          setFlows(currentFlows => {
+              const updateNodeRecursively = (nodes) => {
+                  return nodes.map(node => {
+                      if (node.id === id) {
+                          return { ...node, [field]: value };
+                      }
+                      if (node.children) {
+                          const newChildren = updateNodeRecursively(node.children);
+                          if (newChildren !== node.children) {
+                              return { ...node, children: newChildren };
+                          }
+                      }
+                      return node;
+                  });
+              };
+              return updateNodeRecursively(currentFlows);
+          });
       }, []);
+
+      const getIds = useCallback((steps) => steps.reduce((acc, step) => [...acc, step.id, ...getIds(step.children || [])], []), []);
       
       const addStep = useCallback(() => {
-        const newId = getUniqueId();
-        const newStep = { id: newId, title: `API ${newId}: New Root Step`, url: '', description: '', repoLink: '', request: JSON.stringify({ "data": "value" }, null, 2), response: JSON.stringify({ "result": "success" }, null, 2), outputDescription: "", isExpanded: true, isRequestExpanded: true, children: [] };
-        setFlows(currentFlows => [...currentFlows, addExpansionState([newStep])[0]]);
-      }, [getUniqueId]);
+        setFlows(currentFlows => {
+            const allIds = getIds(currentFlows);
+            const newId = (allIds.length > 0 ? Math.max(...allIds) : 0) + 1;
+            const newStep = { id: newId, title: `API ${newId}: New Root Step`, url: '', description: '', repoLink: '', request: JSON.stringify({ "data": "value" }, null, 2), response: JSON.stringify({ "result": "success" }, null, 2), outputDescription: "", isExpanded: true, isRequestExpanded: true, children: [] };
+            return [...currentFlows, addExpansionState([newStep])[0]];
+        });
+      }, [getIds]);
       
       const addChildStep = useCallback((parentId) => {
-        const newId = getUniqueId();
-        const newStep = { id: newId, title: `API Child: New Step`, url: '', description: '', repoLink: '', request: JSON.stringify({ "fromParent": "value" }, null, 2), response: JSON.stringify({ "result": "pending" }, null, 2), outputDescription: "", isExpanded: true, isRequestExpanded: true, children: [] };
-        const addStepToParent = (steps) => steps.map(step => (step.id === parentId) ? { ...step, isExpanded: true, children: [...(step.children || []), addExpansionState([newStep])[0]] } : { ...step, children: addStepToParent(step.children || []) });
-        setFlows(currentFlows => addStepToParent(currentFlows));
-      }, [getUniqueId]);
+        setFlows(currentFlows => {
+            const addChildRecursively = (nodes, newStep) => {
+                return nodes.map(node => {
+                    if (node.id === parentId) {
+                        return { ...node, isExpanded: true, children: [...(node.children || []), newStep] };
+                    }
+                    if (node.children) {
+                         const newChildren = addChildRecursively(node.children, newStep);
+                         if (newChildren !== node.children) {
+                             return { ...node, children: newChildren };
+                         }
+                    }
+                    return node;
+                });
+            };
+            
+            const allIds = getIds(currentFlows);
+            const newId = (allIds.length > 0 ? Math.max(...allIds) : 0) + 1;
+            const newStep = { id: newId, title: `API Child: New Step`, url: '', description: '', repoLink: '', request: JSON.stringify({ "fromParent": "value" }, null, 2), response: JSON.stringify({ "result": "pending" }, null, 2), outputDescription: "", isExpanded: true, isRequestExpanded: true, children: [] };
+            const processedNewStep = addExpansionState([newStep])[0];
+            return addChildRecursively(currentFlows, processedNewStep);
+        });
+      }, [getIds]);
 
       const deleteStep = useCallback((targetId) => {
-        const filterSteps = (steps) => steps.filter(step => step.id !== targetId).map(step => ({ ...step, children: filterSteps(step.children || []) }));
+        const filterSteps = (steps) => steps.filter(step => step.id !== targetId).map(step => ({ ...step, children: step.children ? filterSteps(step.children) : [] }));
         setFlows(currentFlows => filterSteps(currentFlows));
         showNotification("API Step deleted.");
       }, [showNotification]);
@@ -574,7 +640,7 @@ const ApiFlowVisualizer = () => {
               isResponseExpanded: expand,
               isHeadersExpanded: expand,
               isParamsExpanded: expand,
-              children: toggleNode(node.children || [])
+              children: node.children ? toggleNode(node.children) : []
           }));
           setFlows(currentFlows => toggleNode(currentFlows));
       }, []);
