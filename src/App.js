@@ -1,4 +1,5 @@
 import React, { useState, useCallback, memo, useEffect } from 'react';
+import { format } from 'sql-formatter';
 
 // --- Helper Components ---
 
@@ -874,6 +875,58 @@ const ApiFlowVisualizer = () => {
     );
 };
 
+// --- Tool 4: SQL Formatter ---
+const SqlFormatter = () => {
+    const [sqlInput, setSqlInput] = useState('SELECT * FROM users WHERE id = 1');
+    const [formattedSql, setFormattedSql] = useState('');
+    const [error, setError] = useState('');
+
+    const handleFormat = () => {
+        try {
+            if (sqlInput.trim() === '') {
+                setError('Input is empty.');
+                setFormattedSql('');
+                return;
+            }
+            // 1. Remove double quotes and + symbols.
+            const cleanedSql = sqlInput.replace(/"/g, '').replace(/\+/g, '');
+            
+            // 2. Beautify in format of SQL.
+            const result = format(cleanedSql);
+            setFormattedSql(result);
+            setError('');
+        } catch (e) {
+            setError('Invalid SQL format.');
+            setFormattedSql('');
+        }
+    };
+
+    return (
+        <div className="tool-container">
+            <h2 className="tool-title">SQL Formatter</h2>
+            <div className="json-compare-grid">
+                <textarea
+                    value={sqlInput}
+                    onChange={(e) => setSqlInput(e.target.value)}
+                    className="tool-textarea"
+                    placeholder="Paste your SQL here..."
+                />
+                <textarea
+                    value={formattedSql}
+                    readOnly
+                    className="tool-textarea"
+                    placeholder="Formatted SQL will appear here..."
+                />
+            </div>
+            <button onClick={handleFormat} className="action-button" style={{backgroundColor: '#16a34a', marginTop: '1rem'}}>
+                <Icon path={ICONS.beautify} /> Format SQL
+            </button>
+            {error && <p className="tool-error">{error}</p>}
+        </div>
+    );
+};
+
+
 // --- Main App Shell ---
 export default function App() {
   const [activeTool, setActiveTool] = useState('api_flow');
@@ -1201,11 +1254,13 @@ export default function App() {
             <button style={navButtonStyle('beautifier')} onClick={() => setActiveTool('beautifier')}>JSON Beautifier</button>
             <button style={navButtonStyle('compare')} onClick={() => setActiveTool('compare')}>JSON Compare</button>
             <button style={navButtonStyle('api_flow')} onClick={() => setActiveTool('api_flow')}>API Flow Visualizer</button>
+            <button style={navButtonStyle('sql_formatter')} onClick={() => setActiveTool('sql_formatter')}>SQL Formatter</button>
         </nav>
 
         {activeTool === 'beautifier' && <JsonBeautifier />}
         {activeTool === 'compare' && <JsonCompare />}
         {activeTool === 'api_flow' && <ApiFlowVisualizer />}
+        {activeTool === 'sql_formatter' && <SqlFormatter />}
         
       </div>
     </div>
